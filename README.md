@@ -6,7 +6,7 @@ Estimated cost: ~$3 (~₹250) to experiment without the AWS Free Tier, primarily
 
 👉 Related UI: [RAG UI (Streamlit Frontend)](https://github.com/genieincodebottle/rag-app-on-aws/tree/main/rag_ui)  
 📺 **YouTube breakdown video coming soon...**
-
+ 
 ---
 
 ### 🔍 Overview
@@ -116,7 +116,7 @@ The infrastructure is modularized using Terraform modules:
     -   Utilizes the `pgvector` extension for efficient storage and similarity search of text embeddings.
     -   Stores structured document information in a `documents` table and text chunks with their corresponding vector embeddings in a `chunks` table.
     -   Database credentials are securely managed by AWS Secrets Manager.
-
+ 
 #### 4. **API & Authentication (`modules/api`, `modules/auth`)**
 -   **API Gateway (REST API)**:
     -   Provides public HTTP(S) endpoints for backend Lambda functions.
@@ -202,8 +202,6 @@ The infrastructure is modularized using Terraform modules:
 
 ### 🛠️ Prerequisites
 
--   **Terraform**: `v1.5.7+`
--   **AWS CLI**: Latest version, configured with appropriate credentials and default region.
 -   **Python**: `3.11+` (for Lambda runtime and local testing).
 -   **GitHub Account**: For forking the repository and using GitHub Actions.
 -   **GitHub Secrets**:
@@ -212,7 +210,6 @@ The infrastructure is modularized using Terraform modules:
     -   `SONAR_TOKEN` (Optional): For SonarQube/SonarCloud integration if you wish to use it for code quality analysis.
 -   **Google API Key**: For accessing Google's free-tier Gemini Pro and Gemini Embedding models.
     → [Get your API key from Google AI Studio](https://aistudio.google.com/apikey)
--   **jq**: A lightweight command-line JSON processor. Required by the `scripts/cleanup.sh` script. Install using your system's package manager (e.g., `sudo apt-get install jq` on Debian/Ubuntu, `brew install jq` on macOS).
 
 ---
 
@@ -230,56 +227,11 @@ The infrastructure is modularized using Terraform modules:
     *   If you use SonarCloud/SonarQube, generate an access token.
     *   Add it as a GitHub secret: `SONAR_TOKEN`.
 3.  **Google API Key**:
-    *   While not directly stored as a GitHub secret for deployment (it's set in AWS Secrets Manager post-deployment or via Terraform variable), ensure you have it ready. The Terraform setup will create a placeholder for it in AWS Secrets Manager, which you might need to update manually or provide during `terraform apply` if not automated.
-    *   The `modules/compute/variables.tf` has a `gemini_api_key` variable that defaults to "PLACE_HOLDER". You should override this in your `terraform.tfvars` or as a command-line variable for actual deployments.
+    *   While not directly stored as a GitHub secret for deployment (it's set in AWS Secrets Manager post-deployment or via Terraform variable), ensure you have it ready. The Terraform setup will create a placeholder for it in AWS Secrets Manager, which you need to update manually through AWS Console 
+
 
 **To Add Secrets**:
 Go to your forked GitHub repository → Settings → Secrets and variables → Actions → New repository secret.
-
-#### 🧑‍💻 Manual Deployment
-
-1.  **Clone the repository**:
-    ```bash
-    git clone https://github.com/genieincodebottle/rag-app-on-aws.git
-    cd rag-app-on-aws
-    ```
-2.  **Navigate to the environment directory** (e.g., `dev`):
-    ```bash
-    cd environments/dev
-    ```
-3.  **Initialize Terraform**:
-    ```bash
-    terraform init
-    ```
-4.  **Plan the deployment**:
-    Review the execution plan carefully. You can override variables defined in `variables.tf`.
-    ```bash
-    terraform plan \
-      -var="reset_db_password=false" \
-      -var="bastion_allowed_cidr=[\"0.0.0.0/0\"]" \
-      -var="enable_lifecycle_rules=false"
-    ```
-    *   `reset_db_password`: Set to `true` only if you need to regenerate the database master password (use with caution).
-    *   `bastion_allowed_cidr`: Restrict SSH access to the bastion host (if created). `0.0.0.0/0` is insecure for production.
-    *   `enable_lifecycle_rules`: Set to `true` for production S3 buckets to enable cost-saving lifecycle transitions.
-5.  **Apply the configuration**:
-    ```bash
-    terraform apply \
-      -var="reset_db_password=false" \
-      -var="bastion_allowed_cidr=[\"0.0.0.0/0\"]" \
-      -var="enable_lifecycle_rules=false" \
-      -auto-approve
-    ```
-    (Remove `-auto-approve` to review before applying).
-
-6.  **Retrieve outputs**:
-    These outputs are crucial for configuring the UI or other services.
-    ```bash
-    terraform output api_endpoint
-    terraform output cognito_app_client_id
-    terraform output cognito_user_pool_id
-    # ... and other relevant outputs
-    ```
 
 #### 🤖 Automated Deployment via GitHub Actions
 
