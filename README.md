@@ -116,7 +116,7 @@ The infrastructure is modularized using Terraform modules:
     -   Utilizes the `pgvector` extension for efficient storage and similarity search of text embeddings.
     -   Stores structured document information in a `documents` table and text chunks with their corresponding vector embeddings in a `chunks` table.
     -   Database credentials are securely managed by AWS Secrets Manager.
-
+ 
 #### 4. **API & Authentication (`modules/api`, `modules/auth`)**
 -   **API Gateway (REST API)**:
     -   Provides public HTTP(S) endpoints for backend Lambda functions.
