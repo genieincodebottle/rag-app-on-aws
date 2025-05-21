@@ -40,7 +40,7 @@ A web interface to upload documents, query them using natural language, and retr
 git clone https://github.com/genieincodebottle/rag-app-on-aws.git
 cd rag-app-on-aws/rag_ui
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+venv\Scripts\activate   # Linux: source venv/bin/activate
 pip install -r requirements.txt
 ```
 
