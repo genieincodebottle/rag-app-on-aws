@@ -1,19 +1,27 @@
-## End-to-End RAG App on AWS
+<div align="center">
+    <img src="./images/rag-app.png" alt="RAG App on"/>
+</div>
 
-**Terraform-based Infrastructure as Code (IaC)** for deploying a complete AWS backend for Retrieval-Augmented Generation (RAG). This backend integrates with Google's free-tier Gemini Pro and Gemini Embedding models for AI-powered document querying.
+## End-to-End RAG Application with Evaluation on AWS
 
-Estimated cost: ~$3 (~₹250) to experiment without the AWS Free Tier, primarily for RDS and NAT Gateway if active. To avoid extra charges, **use the cleanup script** in the `scripts` folder or the **Manual AWS Cleanup** GitHub workflow once you're done.
+Terraform-based **Infrastructure as Code (IaC)** to deploy a complete AWS backend for a Retrieval-Augmented Generation (RAG) application. It integrates with Google’s free-tier Gemini Pro and Embedding models for AI powered document querying and includes a Streamlit UI with token-based authentication for interacting with the app.
 
-👉 Related UI: [RAG UI (Streamlit Frontend)](https://github.com/genieincodebottle/rag-app-on-aws/tree/main/rag_ui)  
-📺 **YouTube breakdown video coming soon...**
- 
+💰 Estimated cost: ~$3 (~₹250) to experiment without the AWS Free Tier, primarily for RDS and NAT Gateway if active. 
+
+👉 Related UI: [RAG UI (Streamlit Frontend)](https://github.com/genieincodebottle/rag-app-on-aws/tree/main/rag_ui)  A Streamlit-based frontend application designed to interact with the backend infrastructure deployed by this project. It's located within the `rag_ui/` directory of this repository.
+
+
+🎥 YouTube Video: Walkthrough on setting up the application, building, deploying, and running it end-to-end 👇
+
+[![Watch the video](https://img.youtube.com/vi/x2P4Ee6PYNg/0.jpg)](https://www.youtube.com/watch?v=x2P4Ee6PYNg)
+
 ---
 
 ### 🔍 Overview
 
 This repository contains the complete Terraform codebase for provisioning and managing the AWS infrastructure that powers a RAG application. It allows users to upload documents, which are then processed, embedded, and stored for efficient semantic search and AI-driven querying.
 
-Key features include:
+📌 Key features include:
 - **IaC with Terraform**: For consistent and repeatable deployments across environments.
 - **Serverless Compute**: AWS Lambda for backend logic (document processing, querying, uploads, authentication, DB initialization).
 - **Vector Storage**: PostgreSQL RDS with the `pgvector` extension for storing and searching text embeddings.
@@ -22,13 +30,14 @@ Key features include:
 - **CI/CD Workflows**: GitHub Actions for automated deployment, testing, and cleanup.
 - **Multi-Environment Support**: Designed for `dev`, `staging`, and `production` environments.
 - **Comprehensive Testing**: Includes unit and integration tests for backend Lambda functions.
-
+- **Streamlit UI**: Includes a login page, document upload, query interface, and RAG evaluation dashboard.
 ---
 
 ### 🏗️ High Level Architecture
 
 ![architecture](./images/architecture.png)
 
+---
 ### 🌐 Network Flow Walkthrough (Referencing the Architecture)
 
 #### 🗂️ Document Processing Flow with Network Components:
@@ -62,6 +71,52 @@ This network architecture ensures that sensitive operations and data are process
 
 ---
 
+### 🗂️ Repository Structure
+
+```
+.
+├── .github/workflows/       # CI/CD via GitHub Actions
+│   ├── deploy.yml           # Infrastructure deployment workflow
+│   └── manual_cleanup.yml   # Resource cleanup workflow
+├── environments/            # Environment-specific configs (dev, staging, prod)
+│   └── dev/                 # Example 'dev' environment
+│       ├── main.tf          # Root Terraform file for the environment
+│       ├── providers.tf     # Terraform provider configurations
+│       └── variables.tf     # Environment-specific variable definitions
+├── modules/                 # Reusable Terraform modules
+│   ├── api/                 # API Gateway configuration
+│   ├── auth/                # Cognito authentication
+│   ├── compute/             # Lambda functions & IAM roles
+│   ├── database/            # PostgreSQL RDS with pgvector & Secrets Manager
+│   ├── monitoring/          # CloudWatch Logs, Alarms & SNS Topic
+│   ├── storage/             # S3 Buckets & DynamoDB Table
+│   └── vpc/                 # VPC, Subnets, NAT, Security Groups, Endpoints
+├── rag_ui/                  # Streamlit UI application
+│   ├── app.py               # Main Streamlit application code
+│   └── README.md            # README specific to the UI
+├── scripts/                 # Utility shell scripts
+│   ├── cleanup.sh           # Comprehensive resource cleanup script
+│   ├── import_resources.sh  # Script to import existing AWS resources into Terraform state
+│   └── network-diagnostics.sh # Script for troubleshooting network connectivity (e.g., Lambda to RDS)
+├── src/                     # Lambda backend source code (Python)
+│   ├── auth_handler/        # Lambda for Cognito authentication operations
+│   ├── db_init/             # Lambda for database schema and pgvector initialization
+│   ├── document_processor/  # Lambda for processing uploaded documents
+│   ├── query_processor/     # Lambda for handling user queries and RAG
+│   ├── tests/               # Unit and integration tests
+│   │   ├── integration/     # Integration tests for deployed services
+│   │   │   └── run_integration_tests.py
+│   │   ├── unit/            # Unit tests for Lambda functions
+│   │   │   ├── conftest.py  # Pytest common fixtures and mocks
+│   │   │   ├── test_*.py    # Individual unit test files
+│   │   └── __init__.py
+│   ├── upload_handler/      # Lambda for handling file uploads via API
+│   └── utils/               # Shared utility code (e.g., db_connectivity_test.py)
+├── sonar-project.properties # SonarQube configuration file
+└── tox.ini                  # tox configuration for running tests and linters
+```
+
+---
 ### 🧱 Infrastructure Components
 
 The infrastructure is modularized using Terraform modules:
@@ -151,87 +206,103 @@ The infrastructure is modularized using Terraform modules:
 
 ---
 
-### 🗂️ Repository Structure
-
-```
-.
-├── .github/workflows/       # CI/CD via GitHub Actions
-│   ├── deploy.yml           # Infrastructure deployment workflow
-│   └── manual_cleanup.yml   # Resource cleanup workflow
-├── environments/            # Environment-specific configs (dev, staging, prod)
-│   └── dev/                 # Example 'dev' environment
-│       ├── main.tf          # Root Terraform file for the environment
-│       ├── providers.tf     # Terraform provider configurations
-│       └── variables.tf     # Environment-specific variable definitions
-├── modules/                 # Reusable Terraform modules
-│   ├── api/                 # API Gateway configuration
-│   ├── auth/                # Cognito authentication
-│   ├── compute/             # Lambda functions & IAM roles
-│   ├── database/            # PostgreSQL RDS with pgvector & Secrets Manager
-│   ├── monitoring/          # CloudWatch Logs, Alarms & SNS Topic
-│   ├── storage/             # S3 Buckets & DynamoDB Table
-│   └── vpc/                 # VPC, Subnets, NAT, Security Groups, Endpoints
-├── rag_ui/                  # Streamlit UI application
-│   ├── app.py               # Main Streamlit application code
-│   └── README.md            # README specific to the UI
-├── scripts/                 # Utility shell scripts
-│   ├── cleanup.sh           # Comprehensive resource cleanup script
-│   ├── import_resources.sh  # Script to import existing AWS resources into Terraform state
-│   └── network-diagnostics.sh # Script for troubleshooting network connectivity (e.g., Lambda to RDS)
-├── src/                     # Lambda backend source code (Python)
-│   ├── auth_handler/        # Lambda for Cognito authentication operations
-│   ├── db_init/             # Lambda for database schema and pgvector initialization
-│   ├── document_processor/  # Lambda for processing uploaded documents
-│   ├── query_processor/     # Lambda for handling user queries and RAG
-│   ├── tests/               # Unit and integration tests
-│   │   ├── integration/     # Integration tests for deployed services
-│   │   │   └── run_integration_tests.py
-│   │   ├── unit/            # Unit tests for Lambda functions
-│   │   │   ├── conftest.py  # Pytest common fixtures and mocks
-│   │   │   ├── test_*.py    # Individual unit test files
-│   │   └── __init__.py
-│   ├── upload_handler/      # Lambda for handling file uploads via API
-│   └── utils/               # Shared utility code (e.g., db_connectivity_test.py)
-├── sonar-project.properties # SonarQube configuration file
-└── tox.ini                  # tox configuration for running tests and linters
-```
-
-🔧 Change `project_name` in `environments/<stage>/terraform.tfvars` to deploy under a custom AWS project name. This helps avoid naming conflicts for globally unique resources like S3 buckets.
-
----
+## ⚙️ Build and Deployment
 
 ### 🛠️ Prerequisites
 
--   **Python**: `3.11+` (for Lambda runtime and local testing).
--   **GitHub Account**: For forking the repository and using GitHub Actions.
--   **GitHub Secrets**:
-    -   `AWS_ACCESS_KEY_ID`: Your AWS Access Key ID.
-    -   `AWS_SECRET_ACCESS_KEY`: Your AWS Secret Access Key.
-    -   `SONAR_TOKEN` (Optional): For SonarQube/SonarCloud integration if you wish to use it for code quality analysis.
--   **Google API Key**: For accessing Google's free-tier Gemini Pro and Gemini Embedding models.
-    → [Get your API key from Google AI Studio](https://aistudio.google.com/apikey)
+-   ✅ **Python**: `3.11+` (For Streamlit UI).
+-   ✅ **AWS Cloud Account**: You’ll need an AWS account to build and deploy this end-to-end application (excluding the streamlit UI, which can runs locally on your system).
+
+    👉 [AWS Free Account](https://aws.amazon.com/free/?trk=ac458a05-be8b-40e0-8d01-a185a5530151&sc_channel=ps&ef_id=Cj0KCQjw0LDBBhCnARIsAMpYlAqh7SSXOWwVg9QY_kYOXcrrp4IH9FEnyCVj77ulQ2Bok0aCDHNxpTwaAl6jEALw_wcB:G:s&s_kwcid=AL!4422!3!733868005590!e!!g!!aws%20console!22269308134!170505082450&gad_campaignid=22269308134&gbraid=0AAAAADjHtp9YddvDzIUJZUVVM05tVvxI1&gclid=Cj0KCQjw0LDBBhCnARIsAMpYlAqh7SSXOWwVg9QY_kYOXcrrp4IH9FEnyCVj77ulQ2Bok0aCDHNxpTwaAl6jEALw_wcB&all-free-tier.sort-by=item.additionalFields.SortRank&all-free-tier.sort-order=asc&awsf.Free%20Tier%20Types=*all&awsf.Free%20Tier%20Categories=*all)
+
+    ![aws-account](./images/aws-account.png)
+-   ✅ **GitHub Account**: For forking the repository and using [GitHub](https://github.com/) Actions.
+-   ✅ **Git installed on Local Machine**: Use [Git Bash](https://git-scm.com/downloads) or any preferred Git client to manage your repository.
+-   ✅ **Google API Key**: For accessing Google's free-tier Gemini Pro and Gemini Embedding models.
+    
+    👉 [Get your API key from Google AI Studio](https://aistudio.google.com/apikey)
+
+    ![gemini-api-key](./images/api_key.png)
+-   ✅ Free SonarCloud Account for Code Quality Checks (Optional)
+
+    Sign up at [SonarCloud](https://sonarcloud.io/login?return_to=%2Fexplore%2Fprojects) to enable automated quality gates and static analysis for your codebase.
+
+    ![sonar-cloud](./images/sonar-cloud.png)
+    
+---
+### 🌍 Environment Management
+
+The repository supports multiple deployment environments, typically:
+*   `dev`: For development and testing.
+*   `staging`: For pre-production validation.
+*   `prod`: For the live production environment.
+
+Configuration for each environment (Terraform variables, backend configuration) is managed within its respective subfolder under the `environments/` directory (e.g., `environments/dev/`, `environments/staging/`).
 
 ---
+### 🚀 Build and Deployment
 
-### 🚀 Deployment
+#### 🔐 Set Up GitHub Repo for Build & Deployment
+
+1. Fork the Repository
+   
+   👉 https://github.com/genieincodebottle/rag-app-on-aws
+ 
+   ![github-fork](./images/github-fork.png)
+
+2. Clone to Your Local Machine:
+
+    ```
+    git clone https://github.com/<your-github-username>/rag-app-on-aws.git
+    ```
+3. Customize Project Configuration:
+
+   Update the following fields in environments/<stage>/terraform.tfvars:
+
+   * `project_name = "<your-project-name>"` – to avoid global resource name conflicts (e.g., S3 buckets).
+   * `github_repo = "<your-github-username>/rag-app-on-aws"` – for CI/CD pipeline setup.
+   * `alert_email = "<your-email>"` – for receiving deployment alerts.
+
+     <img src="./images/terraform.png" alt="security-credentials" width="600" height="400"/>
+
 
 #### 🔐 Setting Up GitHub Secrets
 
 1.  **AWS Access Keys**:
-    *   Generate an Access Key for an IAM user with sufficient permissions to create the resources defined in Terraform.
-    *   Navigate to IAM > Users > [Your User] > Security credentials > Create access key.
+    *   Generate an Access Key for either an IAM user with sufficient permissions or the Root user (which has full access) to experiment and create resources defined in Terraform..
+    
+    *   If logged in as root user -> Go to the top-right dropdown menu after login and select 'Security Credentials' as shown below.
+
+        <img src="./images/security-credential.png" alt="security-credentials" width="200"/>
+
+    *   If IAM User -> Navigate to IAM > Users > [Your User] > Security credentials > Create access key.
+
     *   Add these as GitHub repository secrets:
         *   `AWS_ACCESS_KEY_ID`
         *   `AWS_SECRET_ACCESS_KEY`
 2.  **SonarQube Token (Optional)**:
-    *   If you use SonarCloud/SonarQube, generate an access token.
-    *   Add it as a GitHub secret: `SONAR_TOKEN`.
-3.  **Google API Key**:
-    *   While not directly stored as a GitHub secret for deployment (it's set in AWS Secrets Manager post-deployment or via Terraform variable), ensure you have it ready. The Terraform setup will create a placeholder for it in AWS Secrets Manager, which you need to update manually through AWS Console 
+    * First, create an organization and import your GitHub project. 
+    * Then, generate an access token and add it to your GitHub repository secrets as SONAR_TOKEN.
+      
+      <img src="./images/sonar-token.png" alt="sonar-token" width="600"/>
+    * Also, update the following keys in the sonar-project.properties file at the project root:
 
+      * `sonar.projectKey=<your-sonar-organization-name>_rag-app-on-aws`
+      * `sonar.organization=<your-sonar-organization-name>`
+
+      <img src="./images/sonar-properties.png" alt="sonar-properties" width="600"/>
+3.  **Google API Key**:
+    *   Although the GEMINI_API_KEY isn’t stored as a GitHub secret for deployment, it’s configured post-deployment via AWS Secrets Manager or as a Terraform variable. Terraform will create a placeholder secret in AWS Secrets Manager, which you must update manually. Go to the AWS Console, search for “Secrets Manager,” and update the secret with your actual Gemini API key (generated from Google’s Gemini AI Studio).
+
+    🔑 Secret name format: <your-project-name>-<your-env>-gemini-api-key
+    Example: rag-app-dev-gemini-api-key
+
+    ![secret-manager](./images/secret-manager.png)
 
 **To Add Secrets**:
 Go to your forked GitHub repository → Settings → Secrets and variables → Actions → New repository secret.
+
+![secrets](./images/secret-keys.png)
 
 #### 🤖 Automated Deployment via GitHub Actions
 
@@ -240,21 +311,76 @@ The repository includes two primary GitHub Actions workflows:
 1.  **Terraform AWS Deployment (`.github/workflows/deploy.yml`)**:
     *   Deploys the infrastructure based on the target environment.
     *   Triggered automatically on pushes to `develop` (for `dev` env), `main` (for `prod` env), and `staging` (for `staging` env).
-    *   Can also be manually triggered from the GitHub Actions tab, allowing selection of environment and other parameters like `reset_db_password` or `bastion_allowed_cidr`.
+    *   Can also be manually triggered from the GitHub Actions tab, allowing selection of environment and other parameters like `reset_db_password` or `bastion_allowed_cidr` (Keep everything default if running pipeline manually)
 2.  **Manual AWS Cleanup (`.github/workflows/manual_cleanup.yml`)**:
     *   A manually triggered workflow to tear down all AWS resources for a specified environment.
     *   Uses the `scripts/cleanup.sh` script.
 
-**Push to trigger CI/CD deployment**:
--   **Dev**: `git push origin develop`
--   **Staging**: `git push origin staging`
--   **Production**: `git push origin main`
+![github-action](./images/github-action.png)
 
-**Manually trigger deployment from GitHub**:
--   Go to your repository on GitHub.
--   Click on the "Actions" tab.
--   Select "Terraform AWS Deployment" from the list of workflows.
--   Click "Run workflow", choose the branch, environment, and fill in any desired input parameters.
+📤 **Push to trigger CI/CD deployment**:
+   *   **Dev**: `git push origin develop`
+   *   **Staging**: `git push origin staging`
+   *   **Production**: `git push origin main` 
+        * It’s recommended to make changes directly in the main branch of your forked repository to deploy AWS resources.
+        * SonarCloud offers free integration with GitHub’s main branch, and the AWS setup is configured similarly to the dev environment for easy experimentation.
+
+🧑‍💻 **Manually trigger deployment from GitHub**:
+   *   Go to your repository on GitHub.
+   *   Click on the "Actions" tab.
+   *   Select "Terraform AWS Deployment" from the list of workflows.
+   *   Click "Run workflow", choose the branch, environment, and fill in any desired input parameters.
+
+---
+
+### 🔄 Running Streamlit UI
+
+👉 UI Readme: https://github.com/genieincodebottle/rag-app-on-aws/rag_ui
+
+Once the AWS resources are deployed via the GitHub Actions pipeline, follow these steps to launch the UI and test the application locally.
+
+* Navigate to the rag-ui directory in your cloned repository using the terminal.
+
+  ```bash
+  cd rag-app-on-aws/rag_ui
+  python -m venv venv
+  venv\Scripts\activate # Linux: source venv/bin/activate 
+  pip install -r requirements.txt
+  ```
+
+* Configuration
+
+    Create a `.env` file:
+
+    ```env
+    # RAG Application API Configuration
+    API_ENDPOINT=https://your-api-gateway-url.amazonaws.com/stage
+    UPLOAD_ENDPOINT=/upload
+    QUERY_ENDPOINT=/query
+    AUTH_ENDPOINT=/auth
+
+    # Default user settings
+    DEFAULT_USER_ID=test-user
+
+    # Cognito Configuration
+    COGNITO_CLIENT_ID=your_cognito_client_id
+
+    # Enabling/disabling evaluation
+    ENABLE_EVALUATION="true"
+    ```
+
+    Once the GitHub Action pipeline completes successfully, you can download the zipped environment variables file from the GitHub Artifact. Unzip it, open the file, and copy both API_ENDPOINT and COGNITO_CLIENT_ID into your .env file.
+
+    ![env-variable](./rag_ui/images/env-variable.png)
+
+
+*  Usage
+
+    ```bash
+    streamlit run app.py
+    ```
+
+    Visit `http://localhost:8501`, register or log in, upload documents, and start querying.
 
 ---
 
@@ -296,16 +422,6 @@ The `deploy.yml` workflow automates the deployment process with the following ke
 
 ---
 
-### 🌍 Environment Management
-
-The repository supports multiple deployment environments, typically:
--   `dev`: For development and testing.
--   `staging`: For pre-production validation.
--   `prod`: For the live production environment.
-
-Configuration for each environment (Terraform variables, backend configuration) is managed within its respective subfolder under the `environments/` directory (e.g., `environments/dev/`, `environments/staging/`).
-
----
 
 ### 🧰 Utilities
 
@@ -352,13 +468,6 @@ To remove all AWS resources created by this project for a specific environment:
     ```
     (Replace with your actual project name, stage, and region).
     The script has built-in confirmations but destructive actions are significant.
-
----
-
-### 🌐 Related UI
-
--   [RAG UI](https://github.com/genieincodebottle/rag-app-on-aws/tree/main/rag_ui) – A Streamlit-based frontend application designed to interact with the backend infrastructure deployed by this project. It's located within the `rag_ui/` directory of this repository.
-
 ---
 
 ### 🤝 Contributing
