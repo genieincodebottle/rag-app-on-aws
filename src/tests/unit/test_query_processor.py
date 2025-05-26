@@ -31,11 +31,9 @@ class TestQueryProcessor(unittest.TestCase):
     def setUp(self):
         # Mock boto3 clients
         self.s3_patcher = patch("query_processor.query_processor.s3_client")
-        self.dynamodb_patcher = patch("query_processor.query_processor.dynamodb")
         self.secrets_patcher = patch("query_processor.query_processor.secretsmanager")
         
         self.mock_s3 = self.s3_patcher.start()
-        self.mock_dynamodb = self.dynamodb_patcher.start()
         self.mock_secretsmanager = self.secrets_patcher.start()
 
     def tearDown(self):
@@ -51,7 +49,6 @@ class TestQueryProcessor(unittest.TestCase):
                 
         # Stop patchers
         self.s3_patcher.stop()
-        self.dynamodb_patcher.stop()
         self.secrets_patcher.stop()
 
     @patch("query_processor.query_processor.secretsmanager")
