@@ -46,7 +46,6 @@ def get_gemini_api_key():
 # Gemini client
 try:
     GEMINI_API_KEY = get_gemini_api_key()
-    print(f"Gemini API Key {GEMINI_API_KEY}")
     client = genai.Client(api_key=GEMINI_API_KEY)
 except Exception as e:
     logger.error(f"Error configuring Gemini API client: {str(e)}")
