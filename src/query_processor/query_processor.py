@@ -71,10 +71,6 @@ def embed_query(text: str) -> List[float]:
         logger.error(f"Error generating embedding: {str(e)}")
         return [0.0] * 768
 
-# Embed a list of documents
-def embed_documents(texts: List[str]) -> List[List[float]]:
-    return [embed_query(text) for text in texts]
-
 # Get RDS credentials from Secrets Manager
 def get_postgres_credentials():
     try:
