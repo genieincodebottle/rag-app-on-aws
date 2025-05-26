@@ -22,7 +22,7 @@ MODEL_NAME = "gemini-2.0-flash"
 # Now import the module under test - mocks are already in place globally from conftest
 from query_processor.query_processor import (
     handler, get_gemini_api_key, get_postgres_credentials, get_postgres_connection,
-    embed_query, embed_documents, similarity_search, generate_response, DecimalEncoder
+    embed_query, similarity_search, generate_response, DecimalEncoder
 )
 
 class TestQueryProcessor(unittest.TestCase):
@@ -135,27 +135,6 @@ class TestQueryProcessor(unittest.TestCase):
         # Verify results
         self.assertEqual(result, [0.1, 0.2, 0.3])
         mock_client.models.embed_content.assert_called_once()
-
-    @patch("query_processor.query_processor.embed_query")
-    def test_embed_documents(self, mock_embed_query):
-        """Test embedding multiple documents."""
-        # Mock the embed_query function
-        mock_embed_query.side_effect = [
-            [0.1, 0.2, 0.3],
-            [0.4, 0.5, 0.6]
-        ]
-
-        # Test documents
-        docs = ["Document 1", "Document 2"]
-
-        # Call the function
-        result = embed_documents(docs)
-
-        # Verify results
-        self.assertEqual(result, [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]])
-        self.assertEqual(mock_embed_query.call_count, 2)
-        mock_embed_query.assert_any_call("Document 1")
-        mock_embed_query.assert_any_call("Document 2")
 
     @patch("query_processor.query_processor.get_postgres_credentials")
     @patch("query_processor.query_processor.get_postgres_connection")
