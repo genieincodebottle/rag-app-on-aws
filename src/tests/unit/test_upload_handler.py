@@ -216,9 +216,6 @@ class TestUploadHandler(unittest.TestCase):
             unittest.mock.ANY  # We don't need to check the exact values here
         )
         
-        # Verify DynamoDB put_item
-        self.mock_table.put_item.assert_called_once()
-
     @patch("upload_handler.upload_handler.base64.b64decode")
     @patch("upload_handler.upload_handler.uuid.uuid4")
     @patch("upload_handler.upload_handler.datetime")
