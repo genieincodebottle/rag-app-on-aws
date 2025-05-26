@@ -186,24 +186,22 @@ def handler(event, context):
             
         except Exception as e:
             logger.error(f"Error storing metadata in PostgreSQL: {str(e)}")
-            # Continue with DynamoDB as fallback
-        
-        # Store metadata in DynamoDB
-        metadata_table = dynamodb.Table(METADATA_TABLE)
-        metadata_table.put_item(
-            Item={
-                'id': f"doc#{document_id}",
-                'document_id': document_id,
-                'user_id': user_id,
-                'file_name': file_name,
-                'mime_type': mime_type,
-                'status': 'uploaded',
-                'bucket': DOCUMENTS_BUCKET,
-                'key': s3_key,
-                'created_at': int(datetime.now().timestamp() * 1000),
-                'updated_at': int(datetime.now().timestamp() * 1000)
-            }
-        )
+            # Continue with Storing metadata in DynamoDB as fallback
+            metadata_table = dynamodb.Table(METADATA_TABLE)
+            metadata_table.put_item(
+                Item={
+                    'id': f"doc#{document_id}",
+                    'document_id': document_id,
+                    'user_id': user_id,
+                    'file_name': file_name,
+                    'mime_type': mime_type,
+                    'status': 'uploaded',
+                    'bucket': DOCUMENTS_BUCKET,
+                    'key': s3_key,
+                    'created_at': int(datetime.now().timestamp() * 1000),
+                    'updated_at': int(datetime.now().timestamp() * 1000)
+                }
+            )
         
         # Return success response
         return {

@@ -18,7 +18,6 @@ logger.setLevel(logging.INFO)
 
 # AWS clients
 s3_client = boto3.client('s3')
-dynamodb = boto3.resource('dynamodb')
 secretsmanager = boto3.client('secretsmanager')
 
 # Environment variables
@@ -52,7 +51,7 @@ except Exception as e:
     logger.error(f"Error configuring Gemini API client: {str(e)}")
     raise
 
-# Convert Decimal in DynamoDB
+# Convert Decimal
 class DecimalEncoder(json.JSONEncoder):
     def default(self, o):
         if isinstance(o, Decimal):
@@ -71,10 +70,6 @@ def embed_query(text: str) -> List[float]:
     except Exception as e:
         logger.error(f"Error generating embedding: {str(e)}")
         return [0.0] * 768
-
-# Embed a list of documents
-def embed_documents(texts: List[str]) -> List[List[float]]:
-    return [embed_query(text) for text in texts]
 
 # Get RDS credentials from Secrets Manager
 def get_postgres_credentials():
