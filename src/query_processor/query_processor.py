@@ -1,16 +1,21 @@
 """
-Lambda function to process queries and retrieve relevant documents using RAG.
-Includes RAG evaluation functionality.
+Lambda function with MCP SSE integration
+Works with existing SSE-based MCP server running at localhost:8000/sse
+This function performs agentic RAG using the MCP protocol over SSE. 
 """
 import os
 import json
 import boto3
 import logging
 import psycopg2
+import asyncio
 from typing import List, Dict, Any, Optional
 from decimal import Decimal
 from google import genai
 from google.genai import types
+
+from mcp import ClientSession
+from mcp.client.sse import sse_client
 
 # Logger setup
 logger = logging.getLogger()
@@ -33,6 +38,11 @@ TOP_K = int(os.environ.get('TOP_K'))
 TOP_P = float(os.environ.get('TOP_P'))
 ENABLE_EVALUATION = os.environ.get('ENABLE_EVALUATION', 'true').lower() == 'true'
 GEMINI_MODEL = "gemini-2.0-flash"
+
+# MCP Server Configuration
+MCP_TIMEOUT = int(os.environ.get('MCP_TIMEOUT', '60'))
+RAG_CONFIDENCE_THRESHOLD = float(os.environ.get('RAG_CONFIDENCE_THRESHOLD', '0.7'))
+MIN_CONTEXT_LENGTH = int(os.environ.get('MIN_CONTEXT_LENGTH', '100'))
 
 # Get Gemini API key from Secrets Manager
 def get_gemini_api_key():
@@ -58,7 +68,87 @@ class DecimalEncoder(json.JSONEncoder):
             return float(o)
         return super().default(o)
 
-# Embed a query using Gemini embedding model
+class MCPClient:
+    """
+    MCP SSE client that works with your existing server running at http://localhost:8000/sse
+    Uses the actual MCP protocol over SSE
+    """
+    
+    def __init__(self, server_url: str, timeout: int = 60):
+        self.server_url = server_url
+        self.timeout = timeout
+        
+    async def search_with_mcp(self, query: str, max_results: int = 10) -> Dict[str, Any]:
+        """
+        Perform web search using MCP Server SSE protocol
+        """
+        try:
+            logger.info(f"Connecting to MCP server at: {self.server_url}")
+            
+            # Connect to MCP server using SSE
+            async with sse_client(self.server_url) as (read_stream, write_stream):
+                session = ClientSession(read_stream, write_stream)
+                
+                async with session:
+                    # Initialize session with timeout
+                    await asyncio.wait_for(session.initialize(), timeout=30.0)
+                    logger.info("MCP session initialized successfully")
+                    
+                    # Call the web_search tool
+                    result = await asyncio.wait_for(
+                        session.call_tool("web_search", {
+                            "query": query,
+                            "num_results": max_results
+                        }),
+                        timeout=self.timeout
+                    )
+                    
+                    # Extract search results from MCP response
+                    search_data = self._extract_tool_result(result)
+                    
+                    logger.info("MCP search completed successfully")
+                    return {
+                        "success": True,
+                        "data": search_data,
+                        "source": "mcp_web_search"
+                    }
+                    
+        except asyncio.TimeoutError:
+            logger.error("MCP search timeout")
+            return {
+                "success": False,
+                "error": "Search operation timed out",
+                "source": "mcp_client"
+            }
+        except Exception as e:
+            logger.error(f"MCP search failed: {str(e)}")
+            return {
+                "success": False,
+                "error": str(e),
+                "source": "mcp_client"
+            }
+    
+    def _extract_tool_result(self, result) -> Any:
+        """Extract tool result from MCP response"""
+        try:
+            # MCP tool results come in result.content
+            if hasattr(result, 'content') and result.content:
+                # Get the text content from the first content item
+                content_item = result.content[0]
+                if hasattr(content_item, 'text'):
+                    return content_item.text
+                else:
+                    return str(content_item)
+            
+            return str(result)
+            
+        except Exception as e:
+            logger.error(f"Error extracting tool result: {e}")
+            return None
+
+
+
+# [Keep all the existing functions unchanged]
 def embed_query(text: str) -> List[float]:
     try:
         result = client.models.embed_content(
@@ -71,7 +161,6 @@ def embed_query(text: str) -> List[float]:
         logger.error(f"Error generating embedding: {str(e)}")
         return [0.0] * 768
 
-# Get RDS credentials from Secrets Manager
 def get_postgres_credentials():
     try:
         response = secretsmanager.get_secret_value(SecretId=DB_SECRET_ARN)
@@ -80,7 +169,6 @@ def get_postgres_credentials():
         logger.error(f"Error fetching DB credentials: {str(e)}")
         raise
 
-# PostgreSQL connection
 def get_postgres_connection(creds):
     return psycopg2.connect(
         host=creds['host'],
@@ -90,16 +178,12 @@ def get_postgres_connection(creds):
         dbname=creds['dbname']
     )
 
-
-# Vector similarity search using pgvector
 def similarity_search(query_embedding: List[float], user_id: str, limit: int = 5) -> List[Dict[str, Any]]:
     credentials = get_postgres_credentials()
     conn = get_postgres_connection(credentials)
 
     try:
         cursor = conn.cursor()
-
-        # Manually convert the Python list to PostgreSQL vector string format
         vector_str = '[' + ','.join([str(x) for x in query_embedding]) + ']'
 
         cursor.execute(f"""
@@ -145,28 +229,116 @@ def similarity_search(query_embedding: List[float], user_id: str, limit: int = 5
         cursor.close()
         conn.close()
 
+def assess_rag_quality(relevant_chunks: List[Dict[str, Any]], query: str) -> Dict[str, Any]:
+    """
+    Assess the quality of traditional RAG results to determine if web search is needed
+    """
+    if not relevant_chunks:
+        return {
+            "needs_web_search": True,
+            "reason": "No relevant documents found",
+            "confidence": 0.0,
+            "context_length": 0
+        }
+    
+    # Check similarity scores
+    max_similarity = max([chunk.get('similarity_score', 0.0) for chunk in relevant_chunks])
+    avg_similarity = sum([chunk.get('similarity_score', 0.0) for chunk in relevant_chunks]) / len(relevant_chunks)
+    
+    # Check total context length
+    total_context_length = sum([len(chunk.get('content', '')) for chunk in relevant_chunks])
+    
+    # Decision logic
+    needs_web_search = (
+        max_similarity < RAG_CONFIDENCE_THRESHOLD or
+        avg_similarity < (RAG_CONFIDENCE_THRESHOLD * 0.8) or
+        total_context_length < MIN_CONTEXT_LENGTH
+    )
+    
+    reason = ""
+    if max_similarity < RAG_CONFIDENCE_THRESHOLD:
+        reason = f"Low similarity score: {max_similarity:.3f} < {RAG_CONFIDENCE_THRESHOLD}"
+    elif avg_similarity < (RAG_CONFIDENCE_THRESHOLD * 0.8):
+        reason = f"Low average similarity: {avg_similarity:.3f}"
+    elif total_context_length < MIN_CONTEXT_LENGTH:
+        reason = f"Insufficient context length: {total_context_length} < {MIN_CONTEXT_LENGTH}"
+    else:
+        reason = "Traditional RAG results are sufficient"
+    
+    return {
+        "needs_web_search": needs_web_search,
+        "reason": reason,
+        "confidence": max_similarity,
+        "context_length": total_context_length,
+        "max_similarity": max_similarity,
+        "avg_similarity": avg_similarity
+    }
 
-# Generate a response from Gemini using relevant context
-def generate_response(model_name: str, query: str, relevant_chunks: List[Dict[str, Any]]) -> str:
-    context = "\n\n".join([f"Document: {c['file_name']}\nContent: {c['content']}" for c in relevant_chunks])
+async def perform_agentic_search(query: str, mcp_client) -> Dict[str, Any]:
+    """
+    Perform agentic web search using proper MCP client
+    """
+    if not mcp_client:
+        return {
+            "success": False,
+            "error": "Agentic RAG not enabled or MCP client not available",
+            "data": None
+        }
+    
+    try:
+        search_result = await mcp_client.search_with_mcp(query)
+        return search_result
+    except Exception as e:
+        logger.error(f"Agentic search failed: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e),
+            "data": None
+        }
+
+def generate_response(model_name: str, query: str, relevant_chunks: List[Dict[str, Any]], web_search_data: Optional[str] = None) -> str:
+    """
+    Generate response using both traditional RAG context and web search data
+    """
+    # Prepare traditional context
+    traditional_context = ""
+    if relevant_chunks:
+        traditional_context = "\n\n".join([
+            f"Document: {c['file_name']}\nContent: {c['content']}" 
+            for c in relevant_chunks
+        ])
+    
+    # Prepare web search context
+    web_context = ""
+    if web_search_data:
+        web_context = f"\n\nAdditional Web Search Results:\n{web_search_data}"
+    
+    # Combine contexts
+    full_context = traditional_context + web_context
+    
     prompt = f"""
-    Answer the following question based on the provided context.
-    If the answer is not in the context, say "I don't have enough information."
+    Answer the following question using the provided context. Use information from both 
+    your document library and recent web search results when available.
+    
+    If the answer is not sufficiently covered in the context, clearly state what 
+    information is missing and suggest where the user might find more details.
 
-    Context:
-    {context}
+    Context from Documents:
+    {traditional_context}
+    {web_context}
 
     Question: {query}
 
     Answer:
     """
+    
     try:
         config = types.GenerateContentConfig(
             temperature=TEMPERATURE,
             top_p=TOP_P,
             top_k=TOP_K,
             max_output_tokens=MAX_OUTPUT_TOKENS,
-            response_mime_type='application/json'
+            response_mime_type='text/plain'
         )
         result = client.models.generate_content(
             model=model_name,
@@ -178,46 +350,27 @@ def generate_response(model_name: str, query: str, relevant_chunks: List[Dict[st
         logger.error(f"Failed to generate response: {str(e)}")
         return "Sorry, I couldn't generate a response. Please try again later."
 
-# RAG Evaluation functionality
+# [Include the existing evaluation functions - GeminiRagEvaluator class etc.]
 class GeminiRagEvaluator:
     """RAG Evaluator using Google's Gemini model"""
     
     def __init__(self, model_name, google_api_key=None):
-        """Initialize the evaluator with the Gemini model"""
         self.model_name = model_name
         self.google_api_key = google_api_key
         self.client = genai.Client(api_key=self.google_api_key)
         
     def evaluate_response(self, query: str, answer: str, contexts: List[str], 
                          ground_truth: Optional[str] = None) -> Dict[str, float]:
-        """
-        Evaluate RAG response using Gemini model
-        
-        Args:
-            query: The user's query
-            answer: The generated answer
-            contexts: Retrieved context passages
-            ground_truth: Optional ground truth answer
-            
-        Returns:
-            Dict with evaluation metrics
-        """
         results = {}
-        
-        # Evaluate answer relevancy
         results["answer_relevancy"] = self._evaluate_answer_relevancy(query, answer)
-        
-        # Evaluate faithfulness to the context
         results["faithfulness"] = self._evaluate_faithfulness(query, answer, contexts)
         
-        # If ground truth is provided, evaluate precision
         if ground_truth:
             results["context_precision"] = self._evaluate_context_precision(answer, ground_truth)
         
         return results
     
     def _evaluate_answer_relevancy(self, query: str, answer: str) -> float:
-        """Evaluate how relevant the answer is to the query"""
         prompt = f"""On a scale of 0 to 1 (where 1 is best), rate how directly this answer addresses the query.
         Only respond with a number between 0 and 1, with up to 2 decimal places.
         
@@ -227,21 +380,16 @@ class GeminiRagEvaluator:
         Rating (0-1):"""
         
         try:
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=[prompt]
-            )
+            response = self.client.models.generate_content(model=self.model_name, contents=[prompt])
             rating_text = response.text.strip()
             
-            # Extract the numerical rating
             if rating_text:
                 try:
-                    # Find the first float in the response
                     import re
                     matches = re.findall(r"0\.\d+|\d+\.?\d*", rating_text)
                     if matches:
                         rating = float(matches[0])
-                        return min(max(rating, 0.0), 1.0)  # Ensure value is between 0 and 1
+                        return min(max(rating, 0.0), 1.0)
                 except:
                     return 0.5
             return 0.5
@@ -250,8 +398,6 @@ class GeminiRagEvaluator:
             return 0.5
                 
     def _evaluate_faithfulness(self, query: str, answer: str, contexts: List[str]) -> float:
-        """Evaluate how faithful the answer is to the provided contexts"""
-        # Join contexts with separators for clarity
         context_text = "\n\n---\n\n".join(contexts)
         
         prompt = f"""On a scale of 0 to 1 (where 1 is best), evaluate how factually accurate and faithful this answer is based ONLY on the provided context.
@@ -266,21 +412,16 @@ class GeminiRagEvaluator:
         Faithfulness rating (0-1):"""
         
         try:
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=[prompt]
-            )
+            response = self.client.models.generate_content(model=self.model_name, contents=[prompt])
             rating_text = response.text.strip()
             
-            # Extract the numerical rating
             if rating_text:
                 try:
-                    # Find the first float in the response
                     import re
                     matches = re.findall(r"0\.\d+|\d+\.?\d*", rating_text)
                     if matches:
                         rating = float(matches[0])
-                        return min(max(rating, 0.0), 1.0)  # Ensure value is between 0 and 1
+                        return min(max(rating, 0.0), 1.0)
                 except:
                     return 0.5
             return 0.5
@@ -289,7 +430,6 @@ class GeminiRagEvaluator:
             return 0.5
     
     def _evaluate_context_precision(self, answer: str, ground_truth: str) -> float:
-        """Evaluate how close the answer is to the ground truth"""
         prompt = f"""On a scale of 0 to 1 (where 1 is best), rate how well the given answer matches the ground truth.
         Consider factual accuracy, completeness, and correctness.
         Only respond with a number between 0 and 1, with up to 2 decimal places.
@@ -300,21 +440,16 @@ class GeminiRagEvaluator:
         Rating (0-1):"""
         
         try:
-            response = self.client.models.generate_content(
-                model=self.model_name,
-                contents=[prompt]
-            )
+            response = self.client.models.generate_content(model=self.model_name, contents=[prompt])
             rating_text = response.text.strip()
             
-            # Extract the numerical rating
             if rating_text:
                 try:
-                    # Find the first float in the response
                     import re
                     matches = re.findall(r"0\.\d+|\d+\.?\d*", rating_text)
                     if matches:
                         rating = float(matches[0])
-                        return min(max(rating, 0.0), 1.0)  # Ensure value is between 0 and 1
+                        return min(max(rating, 0.0), 1.0)
                 except:
                     return 0.5
             return 0.5
@@ -322,23 +457,9 @@ class GeminiRagEvaluator:
             logger.error(f"Error evaluating context precision with Gemini: {str(e)}")
             return 0.5
 
-# Function to evaluate the RAG response
 def evaluate_rag_response(model_name: str, query: str, answer: str, contexts: List[str], ground_truth: Optional[str] = None) -> Dict[str, float]:
-    """
-    Evaluate the RAG response quality using Gemini
-    
-    Args:
-        query: The user's question
-        answer: The generated answer
-        contexts: List of context passages used for generation
-        ground_truth: Optional ground truth answer
-        
-    Returns:
-        Dictionary of evaluation metrics
-    """
     try:
         if not ENABLE_EVALUATION:
-            # Return placeholder values when evaluation is disabled
             results = {"answer_relevancy": 0.0, "faithfulness": 0.0}
             if ground_truth:
                 results["context_precision"] = 0.0
@@ -353,17 +474,17 @@ def evaluate_rag_response(model_name: str, query: str, answer: str, contexts: Li
         )
     except Exception as e:
         logger.error(f"RAG evaluation failed: {str(e)}")
-        # Return default values on error
         results = {"answer_relevancy": 0.5, "faithfulness": 0.5}
         if ground_truth:
             results["context_precision"] = 0.5
         return results
 
-# Lambda handler
+# Lambda handler with proper agentic RAG
 def handler(event, context):
     logger.info(f"Received event: {json.dumps(event)}")
+    
     try:
-         # Extract body from the request for API Gateway calls
+        # Extract body from the request
         body = {}
         if 'body' in event:
             if isinstance(event.get('body'), str) and event.get('body'):
@@ -374,7 +495,7 @@ def handler(event, context):
             elif isinstance(event.get('body'), dict):
                 body = event.get('body')
                 
-        # Check if this is a health check request
+        # Health check
         if event.get('action') == 'healthcheck' or body.get('action') == 'healthcheck':
             return {
                 'statusCode': 200,
@@ -383,8 +504,9 @@ def handler(event, context):
                     'Access-Control-Allow-Origin': '*'
                 },
                 'body': json.dumps({
-                    'message': 'Query processor is healthy',
-                    'stage': STAGE
+                    'message': 'Enhanced query processor with agentic RAG is healthy',
+                    'stage': STAGE,
+                    'mcp_server_url': mcp_server_url,
                 })
             }
 
@@ -393,6 +515,11 @@ def handler(event, context):
         ground_truth = body.get('ground_truth')
         enable_evaluation = body.get('enable_evaluation', ENABLE_EVALUATION)
         model_name = body.get('model_name', GEMINI_MODEL)
+        web_search_with_mcp = body.get('web_search_with_mcp', False)
+        mcp_server_url = body.get('mcp_server_url', None)
+
+        # Initialize MCP client
+        mcp_client = MCPClient(mcp_server_url, MCP_TIMEOUT) 
 
         if not query:
             return {
@@ -401,18 +528,49 @@ def handler(event, context):
                 'body': json.dumps({'message': 'Query is required'})
             }
 
+        # Step 1: Traditional RAG
         query_embedding = embed_query(query)
         relevant_chunks = similarity_search(query_embedding, user_id)
-        response = generate_response(model_name, query, relevant_chunks)
         
-        # Evaluate the response if enabled
+        # Step 2: Assess RAG quality
+        rag_assessment = assess_rag_quality(relevant_chunks, query)
+        
+        # Step 3: Agentic search if needed
+        web_search_data = None
+        agentic_search_used = False
+        web_search_error = None
+        
+        if mcp_server_url and (rag_assessment["needs_web_search"] or web_search_with_mcp):
+            logger.info(f"Triggering agentic search. Reason: {rag_assessment['reason']}")
+            
+            # Run async agentic search
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                search_result = loop.run_until_complete(perform_agentic_search(query, mcp_client))
+                if search_result["success"]:
+                    web_search_data = search_result["data"]
+                    agentic_search_used = True
+                else:
+                    web_search_error = search_result["error"]
+            finally:
+                loop.close()
+        
+        # Step 4: Generate response
+        response = generate_response(model_name, query, relevant_chunks, web_search_data)
+        
+        # Step 5: Evaluate if enabled
         evaluation_results = {}
         if enable_evaluation:
+            evaluation_contexts = relevant_chunks.copy()
+            if web_search_data:
+                evaluation_contexts.append({"content": str(web_search_data)})
+            
             evaluation_results = evaluate_rag_response(
                 model_name,
                 query=query,
                 answer=response,
-                contexts=relevant_chunks,
+                contexts=evaluation_contexts,
                 ground_truth=ground_truth
             )
 
@@ -422,14 +580,28 @@ def handler(event, context):
             'body': json.dumps({
                 'query': query,
                 'response': response,
-                'results': relevant_chunks,
-                'count': len(relevant_chunks),
-                'evaluation': evaluation_results
+                'traditional_rag': {
+                    'results': relevant_chunks,
+                    'count': len(relevant_chunks),
+                    'assessment': rag_assessment
+                },
+                'agentic_search': {
+                    'used': agentic_search_used,
+                    'data': web_search_data if agentic_search_used else None,
+                    'error': web_search_error
+                },
+                'evaluation': evaluation_results,
+                'metadata': {
+                    'force_web_search': web_search_with_mcp,
+                    'mcp_server_url': mcp_server_url
+                }
             }, cls=DecimalEncoder)
         }
 
     except Exception as e:
         logger.error(f"Unhandled error: {str(e)}")
+        import traceback
+        logger.error(f"Traceback: {traceback.format_exc()}")
         return {
             'statusCode': 500,
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},

@@ -755,7 +755,7 @@ def show_upload_history():
         st.rerun()
     
 # Function to query documents
-def query_documents(selected_model, query_text, user_id, ground_truth=None, enable_evaluation=ENABLE_EVALUATION):
+def query_documents(selected_model, query_text, user_id, ground_truth=None, enable_evaluation=ENABLE_EVALUATION, web_search_with_mcp=False, mcp_server_url=None):
     # Ensure authentication is valid
     if not check_token_refresh():
         st.error("Your session has expired. Please log in again.")
@@ -768,7 +768,9 @@ def query_documents(selected_model, query_text, user_id, ground_truth=None, enab
         "query": query_text, 
         "user_id": user_id,
         "enable_evaluation": enable_evaluation,
-        "model_name": selected_model
+        "model_name": selected_model,
+        "web_search_with_mcp": web_search_with_mcp,
+        "mcp_server_url": mcp_server_url
     }
     
     # Add ground truth if provided
@@ -999,7 +1001,18 @@ def main():
                                         help="Add a ground truth answer to compare with the generated response")
             
             st.info("RAG evaluation uses Gemini to assess the quality of responses based on retrieved context.")
-    
+        
+        agentic_expander = st.expander("Agentic RAG Settings", expanded=False)
+        with agentic_expander:
+            web_search_with_mcp = st.checkbox("Web Search with MCP", value=False,
+                                        help="Always use web search regardless of traditional RAG quality")
+            
+            st.info("When enabled, the system will always perform web search using MCP Server in addition to traditional RAG.")
+            if web_search_with_mcp:
+                mcp_server_url = st.text_input( "Web Search MCP Server URL", 
+                                                value="",
+                                                help="URL of the MCP server for web search")
+
         # Two column layout for query input
         col1, col2 = st.columns([3, 1])
         
@@ -1048,8 +1061,10 @@ def main():
                         selected_model,
                         query, 
                         query_user_id, 
-                        ground_truth=ground_truth,  # New parameter
-                        enable_evaluation=enable_evaluation  # New parameter
+                        ground_truth=ground_truth,  
+                        enable_evaluation=enable_evaluation,
+                        web_search_with_mcp=web_search_with_mcp,
+                        mcp_server_url  = mcp_server_url if web_search_with_mcp else None
                     )
                     
                     # Store result in session state
