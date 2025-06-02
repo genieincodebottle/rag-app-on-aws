@@ -1,7 +1,7 @@
 """
-Lambda function with MCP SSE integration
-Works with existing SSE-based MCP server running at localhost:8000/sse
-This function performs agentic RAG using the MCP protocol over SSE. 
+Lambda function with MCP Stateless HTTP integration
+Works with MCP servers deployed as Lambda functions or HTTP endpoints
+This function performs agentic RAG using stateless MCP protocol calls.
 """
 import os
 import json
@@ -9,13 +9,11 @@ import boto3
 import logging
 import psycopg2
 import asyncio
+import httpx
 from typing import List, Dict, Any, Optional
 from decimal import Decimal
 from google import genai
 from google.genai import types
-
-from mcp import ClientSession
-from mcp.client.sse import sse_client
 
 # Logger setup
 logger = logging.getLogger()
@@ -39,7 +37,7 @@ TOP_P = float(os.environ.get('TOP_P'))
 ENABLE_EVALUATION = os.environ.get('ENABLE_EVALUATION', 'true').lower() == 'true'
 GEMINI_MODEL = "gemini-2.0-flash"
 
-# MCP Server Configuration
+# MCP Client Configuration
 MCP_TIMEOUT = int(os.environ.get('MCP_TIMEOUT', '60'))
 RAG_CONFIDENCE_THRESHOLD = float(os.environ.get('RAG_CONFIDENCE_THRESHOLD', '0.7'))
 MIN_CONTEXT_LENGTH = int(os.environ.get('MIN_CONTEXT_LENGTH', '100'))
@@ -68,87 +66,249 @@ class DecimalEncoder(json.JSONEncoder):
             return float(o)
         return super().default(o)
 
-class MCPClient:
+class StatelessMCPClient:
     """
-    MCP SSE client that works with your existing server running at http://localhost:8000/sse
-    Uses the actual MCP protocol over SSE
+    Stateless MCP client for Lambda integration.
+    Each request is independent and doesn't maintain session state.
     """
     
-    def __init__(self, server_url: str, timeout: int = 60):
-        self.server_url = server_url
-        self.timeout = timeout
+    def __init__(
+        self,
+        mcp_url: str,
+        timeout: float = 30.0,
+        headers: Optional[Dict[str, str]] = None
+    ):
+        """
+        Initialize the stateless MCP client.
         
-    async def search_with_mcp(self, query: str, max_results: int = 10) -> Dict[str, Any]:
+        Args:
+            mcp_url: The MCP server URL (Lambda function URL or HTTP endpoint)
+            timeout: HTTP timeout for requests
+            headers: Optional additional headers
         """
-        Perform web search using MCP Server SSE protocol
+        self.mcp_url = mcp_url
+        self.timeout = timeout
+        self.headers = {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            **(headers or {})
+        }
+        self._request_id_counter = 0
+    
+    def _generate_request_id(self) -> str:
+        """Generate a unique request ID."""
+        self._request_id_counter += 1
+        import time
+        return f"req_{self._request_id_counter}_{int(time.time() * 1000)}"
+    
+    async def _make_request(
+        self,
+        method: str,
+        params: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         """
-        try:
-            logger.info(f"Connecting to MCP server at: {self.server_url}")
+        Make a stateless JSON-RPC request to the MCP server.
+        
+        Args:
+            method: The MCP method to call
+            params: Optional parameters for the method
             
-            # Connect to MCP server using SSE
-            async with sse_client(self.server_url) as (read_stream, write_stream):
-                session = ClientSession(read_stream, write_stream)
+        Returns:
+            JSON-RPC response or error dict
+        """
+        request_id = self._generate_request_id()
+        
+        # Create JSON-RPC request
+        jsonrpc_request = {
+            "jsonrpc": "2.0",
+            "id": request_id,
+            "method": method,
+            "params": params or {}
+        }
+        
+        try:
+            async with httpx.AsyncClient(timeout=self.timeout) as http_client:
+                response = await http_client.post(
+                    self.mcp_url,
+                    json=jsonrpc_request,
+                    headers=self.headers
+                )
                 
-                async with session:
-                    # Initialize session with timeout
-                    await asyncio.wait_for(session.initialize(), timeout=30.0)
-                    logger.info("MCP session initialized successfully")
+                response.raise_for_status()
+                
+                # Parse response
+                response_data = response.json()
+                
+                # Handle Lambda wrapper vs direct MCP response
+                if "body" in response_data and "statusCode" in response_data:
+                    # Lambda API Gateway response format
+                    if response_data["statusCode"] != 200:
+                        raise Exception(f"Lambda returned status {response_data['statusCode']}")
                     
-                    # Call the web_search tool
-                    result = await asyncio.wait_for(
-                        session.call_tool("web_search", {
-                            "query": query,
-                            "num_results": max_results
-                        }),
-                        timeout=self.timeout
-                    )
+                    body = response_data["body"]
+                    if isinstance(body, str):
+                        body = json.loads(body)
+                    response_content = body
+                else:
+                    # Direct MCP response
+                    response_content = response_data
+                
+                return {
+                    "success": True,
+                    "data": response_content,
+                    "error": None
+                }
                     
-                    # Extract search results from MCP response
-                    search_data = self._extract_tool_result(result)
-                    
-                    logger.info("MCP search completed successfully")
-                    return {
-                        "success": True,
-                        "data": search_data,
-                        "source": "mcp_web_search"
-                    }
-                    
-        except asyncio.TimeoutError:
-            logger.error("MCP search timeout")
+        except httpx.HTTPStatusError as e:
+            logger.error(f"HTTP error: {e.response.status_code} - {e.response.text}")
             return {
                 "success": False,
-                "error": "Search operation timed out",
-                "source": "mcp_client"
+                "data": None,
+                "error": f"HTTP error: {e.response.status_code}"
             }
+        except Exception as e:
+            logger.error(f"Request error: {e}")
+            return {
+                "success": False,
+                "data": None,
+                "error": str(e)
+            }
+    
+    async def list_tools(self) -> Dict[str, Any]:
+        """
+        List available tools from the MCP server.
+        
+        Returns:
+            Tools list response
+        """
+        return await self._make_request(method="tools/list")
+    
+    async def call_tool(
+        self,
+        name: str,
+        arguments: Optional[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        """
+        Call a specific tool on the MCP server.
+        
+        Args:
+            name: Tool name to call
+            arguments: Tool arguments
+            
+        Returns:
+            Tool execution response
+        """
+        return await self._make_request(
+            method="tools/call",
+            params={
+                "name": name,
+                "arguments": arguments or {}
+            }
+        )
+    
+    async def search_with_mcp(self, query: str, max_results: int = 10) -> Dict[str, Any]:
+        """
+        Perform web search using MCP Server stateless protocol
+        """
+        try:
+            logger.info(f"Making stateless MCP request to: {self.mcp_url}")
+            
+            # Call the web_search tool
+            result = await self.call_tool("web_search", {
+                "query": query,
+                "num_results": max_results
+            })
+            
+            if not result["success"]:
+                return {
+                    "success": False,
+                    "error": result["error"],
+                    "data": None,
+                    "source": "mcp_client"
+                }
+            
+            # Extract search results from MCP response
+            search_data = self._extract_tool_result(result["data"])
+            
+            logger.info("MCP search completed successfully")
+            return {
+                "success": True,
+                "data": search_data,
+                "source": "mcp_web_search"
+            }
+                    
         except Exception as e:
             logger.error(f"MCP search failed: {str(e)}")
             return {
                 "success": False,
                 "error": str(e),
+                "data": None,
                 "source": "mcp_client"
             }
     
-    def _extract_tool_result(self, result) -> Any:
-        """Extract tool result from MCP response"""
+    def _extract_tool_result(self, response_data) -> Any:
+        """Extract tool result from MCP response - improved for FastMCP compatibility"""
         try:
-            # MCP tool results come in result.content
-            if hasattr(result, 'content') and result.content:
-                # Get the text content from the first content item
-                content_item = result.content[0]
-                if hasattr(content_item, 'text'):
-                    return content_item.text
+            # Handle different response formats
+            if isinstance(response_data, dict):
+                # Check for JSON-RPC response format
+                if "result" in response_data:
+                    result = response_data["result"]
+                    
+                    # FastMCP with json_response=True returns direct tool results
+                    if isinstance(result, str):
+                        return result
+                    
+                    # Standard MCP tool response format
+                    if isinstance(result, dict) and "content" in result:
+                        content = result["content"]
+                        if isinstance(content, list) and len(content) > 0:
+                            first_content = content[0]
+                            if isinstance(first_content, dict) and "text" in first_content:
+                                return first_content["text"]
+                            else:
+                                return str(first_content)
+                        else:
+                            return str(content)
+                    
+                    # Handle direct dictionary results
+                    elif isinstance(result, dict):
+                        # If it looks like structured data, convert to string
+                        if any(key in result for key in ['content', 'text', 'data', 'message']):
+                            return str(result.get('content', result.get('text', result.get('data', result.get('message', str(result))))))
+                        else:
+                            return str(result)
+                    
+                    # Handle other result types
+                    else:
+                        return str(result)
+                
+                # Check for error in response
+                elif "error" in response_data:
+                    error = response_data["error"]
+                    if isinstance(error, dict):
+                        error_message = error.get('message', str(error))
+                        error_code = error.get('code', 'unknown')
+                        return f"MCP Error ({error_code}): {error_message}"
+                    else:
+                        return f"MCP Error: {str(error)}"
+                
+                # Handle direct content (for some FastMCP configurations)
+                elif "content" in response_data:
+                    return str(response_data["content"])
+                
+                # Fallback to string representation
                 else:
-                    return str(content_item)
+                    return str(response_data)
             
-            return str(result)
+            else:
+                return str(response_data)
             
         except Exception as e:
             logger.error(f"Error extracting tool result: {e}")
-            return None
+            return f"Error extracting result: {str(e)}"
 
-
-
-# [Keep all the existing functions unchanged]
+# [Keep all existing RAG functions unchanged]
 def embed_query(text: str) -> List[float]:
     try:
         result = client.models.embed_content(
@@ -276,7 +436,7 @@ def assess_rag_quality(relevant_chunks: List[Dict[str, Any]], query: str) -> Dic
 
 async def perform_agentic_search(query: str, mcp_client) -> Dict[str, Any]:
     """
-    Perform agentic web search using proper MCP client
+    Perform agentic web search using stateless MCP client
     """
     if not mcp_client:
         return {
@@ -350,7 +510,7 @@ def generate_response(model_name: str, query: str, relevant_chunks: List[Dict[st
         logger.error(f"Failed to generate response: {str(e)}")
         return "Sorry, I couldn't generate a response. Please try again later."
 
-# [Include the existing evaluation functions - GeminiRagEvaluator class etc.]
+# [Keep existing evaluation classes and functions]
 class GeminiRagEvaluator:
     """RAG Evaluator using Google's Gemini model"""
     
@@ -479,7 +639,7 @@ def evaluate_rag_response(model_name: str, query: str, answer: str, contexts: Li
             results["context_precision"] = 0.5
         return results
 
-# Lambda handler with proper agentic RAG
+# Updated Lambda handler with stateless MCP client
 def handler(event, context):
     logger.info(f"Received event: {json.dumps(event)}")
     
@@ -494,6 +654,15 @@ def handler(event, context):
                     body = {}
             elif isinstance(event.get('body'), dict):
                 body = event.get('body')
+        
+        # Extract parameters
+        query = body.get('query')
+        user_id = body.get('user_id', 'system')
+        ground_truth = body.get('ground_truth')
+        enable_evaluation = body.get('enable_evaluation', ENABLE_EVALUATION)
+        model_name = body.get('model_name', GEMINI_MODEL)
+        web_search_with_mcp = body.get('web_search_with_mcp', False)
+        mcp_server_url = body.get('mcp_server_url', None)
                 
         # Health check
         if event.get('action') == 'healthcheck' or body.get('action') == 'healthcheck':
@@ -504,22 +673,12 @@ def handler(event, context):
                     'Access-Control-Allow-Origin': '*'
                 },
                 'body': json.dumps({
-                    'message': 'Enhanced query processor with agentic RAG is healthy',
+                    'message': 'Enhanced query processor with stateless agentic RAG is healthy',
                     'stage': STAGE,
                     'mcp_server_url': mcp_server_url,
+                    'client_type': 'stateless_http'
                 })
             }
-
-        query = body.get('query')
-        user_id = body.get('user_id', 'system')
-        ground_truth = body.get('ground_truth')
-        enable_evaluation = body.get('enable_evaluation', ENABLE_EVALUATION)
-        model_name = body.get('model_name', GEMINI_MODEL)
-        web_search_with_mcp = body.get('web_search_with_mcp', False)
-        mcp_server_url = body.get('mcp_server_url', None)
-
-        # Initialize MCP client
-        mcp_client = MCPClient(mcp_server_url, MCP_TIMEOUT) 
 
         if not query:
             return {
@@ -527,6 +686,11 @@ def handler(event, context):
                 'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
                 'body': json.dumps({'message': 'Query is required'})
             }
+
+        # Initialize stateless MCP client
+        mcp_client = None
+        if mcp_server_url:
+            mcp_client = StatelessMCPClient(mcp_server_url, MCP_TIMEOUT)
 
         # Step 1: Traditional RAG
         query_embedding = embed_query(query)
@@ -540,8 +704,8 @@ def handler(event, context):
         agentic_search_used = False
         web_search_error = None
         
-        if mcp_server_url and (rag_assessment["needs_web_search"] or web_search_with_mcp):
-            logger.info(f"Triggering agentic search. Reason: {rag_assessment['reason']}")
+        if mcp_client and (rag_assessment["needs_web_search"] or web_search_with_mcp):
+            logger.info(f"Triggering stateless agentic search. Reason: {rag_assessment['reason']}")
             
             # Run async agentic search
             loop = asyncio.new_event_loop()
@@ -588,12 +752,14 @@ def handler(event, context):
                 'agentic_search': {
                     'used': agentic_search_used,
                     'data': web_search_data if agentic_search_used else None,
-                    'error': web_search_error
+                    'error': web_search_error,
+                    'client_type': 'stateless_http'
                 },
                 'evaluation': evaluation_results,
                 'metadata': {
                     'force_web_search': web_search_with_mcp,
-                    'mcp_server_url': mcp_server_url
+                    'mcp_server_url': mcp_server_url,
+                    'mcp_client_type': 'stateless_http'
                 }
             }, cls=DecimalEncoder)
         }

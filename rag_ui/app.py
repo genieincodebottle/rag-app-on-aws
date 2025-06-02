@@ -794,7 +794,7 @@ def query_documents(selected_model, query_text, user_id, ground_truth=None, enab
             json=payload,
             headers=get_headers()
         )
-        
+        print(f"RESPONSE {response}")
         # Log response details
         logger.info(f"Query response status: {response.status_code}")
         logger.info(f"Query response headers: {dict(response.headers)}")
