@@ -1002,16 +1002,16 @@ def main():
             
             st.info("RAG evaluation uses Gemini to assess the quality of responses based on retrieved context.")
         
-        agentic_expander = st.expander("Agentic RAG Settings", expanded=False)
+        agentic_expander = st.expander("MCP Specific Settings", expanded=False)
         with agentic_expander:
             web_search_with_mcp = st.checkbox("Web Search with MCP", value=False,
                                         help="Always use web search regardless of traditional RAG quality")
             
-            st.info("When enabled, the system will always perform web search using MCP Server in addition to traditional RAG.")
+            st.info("When enabled, the system will perform web search using MCP Server if traditional RAG is not able to Generate response.")
             if web_search_with_mcp:
                 mcp_server_url = st.text_input( "Web Search MCP Server URL", 
                                                 value="",
-                                                help="URL of the MCP server for web search")
+                                                help="URL of the MCP server for web search. Example: https://mcp-server.example.com/mcp/",)
 
         # Two column layout for query input
         col1, col2 = st.columns([3, 1])
@@ -1084,8 +1084,9 @@ def main():
             with tab1:
                 # Display the AI-generated response
                 if "response" in result:
-                    response_data = json.loads(result["response"])
-                    st.markdown(response_data.get("answer", "No answer found."))
+                    response_data = result["response"]
+                    st.markdown(response_data)
+                    #st.markdown(response_data.get("answer", "No answer found."))
                 else:
                     st.info("No AI-generated response available.")
             

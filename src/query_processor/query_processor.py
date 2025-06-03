@@ -704,7 +704,7 @@ def handler(event, context):
         agentic_search_used = False
         web_search_error = None
         
-        if mcp_client and (rag_assessment["needs_web_search"] or web_search_with_mcp):
+        if rag_assessment["needs_web_search"] and (mcp_client or web_search_with_mcp):
             logger.info(f"Triggering stateless agentic search. Reason: {rag_assessment['reason']}")
             
             # Run async agentic search
