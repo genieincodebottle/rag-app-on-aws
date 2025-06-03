@@ -90,7 +90,7 @@ class StatelessMCPClient:
         self.timeout = timeout
         self.headers = {
             "Content-Type": "application/json",
-            "Accept": "application/json",
+            "Accept": "application/json, text/event-stream",
             **(headers or {})
         }
         self._request_id_counter = 0
@@ -722,7 +722,7 @@ def handler(event, context):
         
         # Step 4: Generate response
         response = generate_response(model_name, query, relevant_chunks, web_search_data)
-        
+        logger.info(f"Generated response: {response}")
         # Step 5: Evaluate if enabled
         evaluation_results = {}
         if enable_evaluation:
