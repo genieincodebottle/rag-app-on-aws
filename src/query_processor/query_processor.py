@@ -230,36 +230,36 @@ class StatelessMCPClient:
             }
     
     def _extract_tool_result(self, response_data) -> Any:
-        """Extract tool result from MCP response"""
-        try:
-            # Handle different response formats
-            if isinstance(response_data, dict):
-                # Check for JSON-RPC response format
-                if "result" in response_data:
-                    result = response_data["result"]
-                    # FastMCP with json_response=True returns direct tool results
-                    if isinstance(result, str):
-                        return result
-                # Check for error in response
-                elif "error" in response_data:
-                    error = response_data["error"]
-                    if isinstance(error, dict):
-                        error_message = error.get('message', str(error))
-                        error_code = error.get('code', 'unknown')
-                        return f"MCP Error ({error_code}): {error_message}"
-                    else:
-                        return f"MCP Error: {str(error)}"
-                # Handle direct content (for some FastMCP configurations)
-                elif "content" in response_data:
-                    return str(response_data["content"])
-                # Fallback to string representation
-                else:
-                    return str(response_data)
-            else:
-                return str(response_data)
-        except Exception as e:
-            logger.error(f"Error extracting tool result: {e}")
-            return f"Error extracting result: {str(e)}"
+            """Extract tool result from MCP response - improved for FastMCP compatibility"""
+            try:
+                # Handle different response formats
+                if isinstance(response_data, dict):
+                    # Check for JSON-RPC response format
+                    if "result" in response_data:
+                        result = response_data["result"]
+                        
+                        if isinstance(result, str):
+                            return result
+                        elif isinstance(result, dict):
+                            # If it looks like structured data, convert to string
+                            if any(key in result for key in ['content', 'text', 'data', 'message']):
+                                return str(result.get('content', result.get('text', result.get('data', result.get('message', str(result))))))
+                            else:
+                                return str(result)
+                        else:
+                            return str(result)
+                    # Check for error in response
+                    elif "error" in response_data:
+                        error = response_data["error"]
+                        if isinstance(error, dict):
+                            error_message = error.get('message', str(error))
+                            error_code = error.get('code', 'unknown')
+                            return f"MCP Error ({error_code}): {error_message}"
+                        else:
+                            return f"MCP Error: {str(error)}"
+            except Exception as e:
+                print(f"Error extracting tool result: {e}")
+                return f"Error extracting result: {str(e)}"
 
 # Function to embed query using Gemini model
 def embed_query(text: str) -> List[float]:
@@ -681,6 +681,7 @@ def handler(event, context):
             finally:
                 loop.close()
         
+        logger.info(f"Web search data: {web_search_data}")
         # Step 4: Generate response
         response = generate_response(model_name, query, relevant_chunks, web_search_data)
         logger.info(f"Generated response: {response}")

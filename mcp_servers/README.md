@@ -17,9 +17,10 @@ This project implements a streamable HTTP-based MCP server for performing Google
 ```bash
 git clone https://github.com/genieincodebottle/rag-app-on-aws.git
 cd rag-app-on-aws/mcp_server
-python -m venv venv
-venv\Scripts\activate   # Linux: source venv/bin/activate
-pip install -r requirements.txt
+pip install uv # If uv doesn't exist in your system
+uv venv
+.venv\Scripts\activate   # Linux: source .venv/bin/activate
+uv pip install -r requirements.txt
 ```
 
 ### 🛠️ Configuration
