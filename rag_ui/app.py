@@ -890,14 +890,9 @@ def render_sidebar():
     selected_model =""
     # Determine current page
     if st.session_state.get("authenticated", False):
-        with st.sidebar.expander("⚙️ API Settings", expanded=False):
-            new_url = st.text_input("Base API URL", value=API_ENDPOINTS["base_url"])
-            if st.button("Save Settings"):
-                API_ENDPOINTS["base_url"] = new_url
-                st.success("✅ Settings saved for this session.")
         selected_model = st.selectbox(
             "Select Model",
-            options=["gemini-2.0-flash", "gemini-1.5-pro", "gemini-2.5-flash-preview-04-17"],
+            options=["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-pro", "gemini-2.5-flash-preview-04-17"],
             index=0,
             help="Select the model to use"
         )
@@ -1148,7 +1143,7 @@ def main():
                             # Web Search Results (if used)
                             if web_search_used:
                                 st.markdown("#### 🌐 Web Search Results")
-                                search_data = agentic_search.get("data")
+                                search_data = mcp_web_search.get("data")
                                 if search_data:
                                     with st.expander("🔍 Web Search Content"):
                                         if isinstance(search_data, str):

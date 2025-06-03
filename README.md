@@ -343,9 +343,13 @@ Once the AWS resources are deployed via the GitHub Actions pipeline, follow thes
 
   ```bash
   cd rag-app-on-aws/rag_ui
+
   pip install uv # If uv doesn't exist in your system
+
   uv venv
+
   .venv\Scripts\activate # Linux: source .venv/bin/activate 
+  
   uv pip install -r requirements.txt
   ```
 

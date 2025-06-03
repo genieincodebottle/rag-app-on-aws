@@ -16,10 +16,15 @@ This project implements a streamable HTTP-based MCP server for performing Google
 
 ```bash
 git clone https://github.com/genieincodebottle/rag-app-on-aws.git
+
 cd rag-app-on-aws/mcp_server
+
 pip install uv # If uv doesn't exist in your system
+
 uv venv
+
 .venv\Scripts\activate   # Linux: source .venv/bin/activate
+
 uv pip install -r requirements.txt
 ```
 
@@ -40,8 +45,20 @@ Run the following command to start the MCP server on localhost at port 8000 (you
 python web_search_mcp_server.py --port 8000
 ```
 
-Run the following command in Windows PowerShell or Git Bash to expose your local server over the internet. This is necessary because AWS Lambda cannot access localhost. Update the port if you're not using 8000. This will generate a URL required for using the MCP Server-based Web Search in the RAG UI.
+To expose your local server to the internet (required because AWS Lambda cannot access localhost), choose one of the following methods. Be sure to update the port if you're not using 8000.
 
-```bash
-ssh -R 80:localhost:8000 serveo.net
-```
+✅ Option 1 (Recommended): Use Cloudflare Tunnel (Free)
+Run the following commands in Windows PowerShell to download and start a secure tunnel. This will provide a public URL for accessing your local MCP server in the RAG UI.
+
+  ```bash
+  iwr -useb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe -OutFile cloudflared.exe
+  
+  cloudflared tunnel --url http://localhost:8000
+  ```
+
+✅ Option 2: Use Serveo (Quick SSH Tunnel)
+Run this command in Windows PowerShell or Git Bash to open an SSH tunnel and expose your local server:
+
+ ```bash
+ ssh -R 80:localhost:8000 serveo.net
+ ```
