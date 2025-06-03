@@ -265,6 +265,11 @@ resource "aws_lambda_function" "query_processor" {
       TOP_K                    = 40
       TOP_P                    = 0.8
       SIMILARITY_THRESHOLD     = 0.7
+
+      # MCP Configuration
+      MCP_TIMEOUT              = var.mcp_timeout
+      RAG_CONFIDENCE_THRESHOLD = var.rag_confidence_threshold
+      MIN_CONTEXT_LENGTH       = var.min_context_length
     }
   }
 
@@ -369,4 +374,3 @@ resource "aws_s3_bucket_notification" "bucket_notification" {
 
   depends_on = [aws_lambda_permission.s3_invoke_lambda_document_processor]
 }
-

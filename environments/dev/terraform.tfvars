@@ -52,3 +52,8 @@ db_name               = "ragapp"
 db_username           = "ragadmin"
 import_db             = false
 reset_db_password     = false  # Only set to true when you need to reset the password
+
+# MCP Configuration
+mcp_timeout = 60
+rag_confidence_threshold = 0.7
+min_context_length = 100

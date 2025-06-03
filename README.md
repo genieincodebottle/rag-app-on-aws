@@ -343,9 +343,14 @@ Once the AWS resources are deployed via the GitHub Actions pipeline, follow thes
 
   ```bash
   cd rag-app-on-aws/rag_ui
-  python -m venv venv
-  venv\Scripts\activate # Linux: source venv/bin/activate 
-  pip install -r requirements.txt
+
+  pip install uv # If uv doesn't exist in your system
+
+  uv venv
+
+  .venv\Scripts\activate # Linux: source .venv/bin/activate 
+  
+  uv pip install -r requirements.txt
   ```
 
 * Configuration
@@ -372,7 +377,6 @@ Once the AWS resources are deployed via the GitHub Actions pipeline, follow thes
     Once the GitHub Action pipeline completes successfully, you can download the zipped environment variables file from the GitHub Artifact. Unzip it, open the file, and copy both API_ENDPOINT and COGNITO_CLIENT_ID into your .env file.
 
     ![env-variable](./rag_ui/images/env-variable.png)
-
 
 *  Usage
 

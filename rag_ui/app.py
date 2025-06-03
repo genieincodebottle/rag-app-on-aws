@@ -3,7 +3,6 @@ import requests
 import json
 import base64
 import os
-import time
 import logging
 from datetime import datetime, timedelta
 import pandas as pd
@@ -27,9 +26,9 @@ API_ENDPOINTS = {
     "auth": os.getenv("AUTH_ENDPOINT", "/auth")
 }
 DEFAULT_USER_ID = os.getenv("DEFAULT_USER_ID", "test-user")
-DEFAULT_API_KEY = os.getenv("API_KEY", "")
 COGNITO_CLIENT_ID = os.getenv("COGNITO_CLIENT_ID", "")
 ENABLE_EVALUATION = os.getenv("ENABLE_EVALUATION", "true").lower() == "true"
+
 # Set page config
 st.set_page_config(
     page_title="RAG Application",
@@ -44,12 +43,6 @@ if 'user_id' not in st.session_state:
     
 if 'uploaded_docs' not in st.session_state:
     st.session_state.uploaded_docs = []
-
-if 'api_key' not in st.session_state:
-    st.session_state.api_key = DEFAULT_API_KEY
-
-if 'query_history' not in st.session_state:
-    st.session_state.query_history = []
 
 # Authentication state
 if 'authenticated' not in st.session_state:
@@ -69,6 +62,13 @@ if 'token_expiry' not in st.session_state:
 
 if 'user_email' not in st.session_state:
     st.session_state.user_email = None
+
+# MCP Web Search Configuration
+if 'mcp_web_search_enabled' not in st.session_state:
+    st.session_state.mcp_web_search_enabled = False
+
+if 'mcp_server_url' not in st.session_state:
+    st.session_state.mcp_server_url = ""
 
 # Function to get headers with correct authentication token format
 def get_headers():
@@ -436,8 +436,10 @@ def test_auth_token():
         logger.error(f"Auth token test error: {str(e)}")
         return False
 
+
 # Application title and description
 st.title("RAG App on AWS")
+
 # Function to render the login page
 def render_login_page():
     tab1, tab2, tab3 = st.tabs(["Login", "Register", "Forgot Password"])
@@ -678,7 +680,7 @@ def upload_document(file, user_id):
         logger.error(f"Upload error: {e}")
         return show_error("Exception during upload", str(e))
 
-
+# Function to handle Upload API response
 def handle_response(response, file_name, user_id):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
@@ -705,7 +707,7 @@ def handle_response(response, file_name, user_id):
     else:
         return show_error(f"Upload failed (Error {response.status_code})", response)
 
-
+# Function to show success tabs after upload
 def show_success_tabs(file_name, document_id, timestamp, user_id, result):
     tab1, tab2, tab3 = st.tabs(["Upload Summary", "API Response", "Recent Uploads"])
     with tab1:
@@ -721,7 +723,7 @@ def show_success_tabs(file_name, document_id, timestamp, user_id, result):
     with tab3:
         show_upload_history()
 
-
+# Function to show error message in tabs
 def show_error(title, details):
     tab1, tab2 = st.tabs(["Error Details", "Recent Uploads"])
     with tab1:
@@ -740,7 +742,7 @@ def show_error(title, details):
     st.error(title)
     return False, title
 
-
+# Function to show recent upload history
 def show_upload_history():
     if not st.session_state.get("uploaded_docs"):
         st.info("No upload history available.")
@@ -755,7 +757,7 @@ def show_upload_history():
         st.rerun()
     
 # Function to query documents
-def query_documents(selected_model, query_text, user_id, ground_truth=None, enable_evaluation=ENABLE_EVALUATION):
+def query_documents(selected_model, query_text, user_id, ground_truth=None, enable_evaluation=ENABLE_EVALUATION, web_search_with_mcp=False, mcp_server_url=None):
     # Ensure authentication is valid
     if not check_token_refresh():
         st.error("Your session has expired. Please log in again.")
@@ -768,7 +770,9 @@ def query_documents(selected_model, query_text, user_id, ground_truth=None, enab
         "query": query_text, 
         "user_id": user_id,
         "enable_evaluation": enable_evaluation,
-        "model_name": selected_model
+        "model_name": selected_model,
+        "web_search_with_mcp": web_search_with_mcp,
+        "mcp_server_url": mcp_server_url
     }
     
     # Add ground truth if provided
@@ -782,10 +786,6 @@ def query_documents(selected_model, query_text, user_id, ground_truth=None, enab
         # Log request details
         logger.info(f"Sending query request to: {query_url}")
         logger.info(f"Query payload: {payload}")
-        
-        # Show what's being sent
-        st.write("Sending request to:", query_url)
-        st.json(payload)
         
         response = requests.post(
             query_url,
@@ -801,21 +801,14 @@ def query_documents(selected_model, query_text, user_id, ground_truth=None, enab
         except:
             logger.info(f"Query response text: {response.text}")
         
-        # Display raw response for debugging
-        st.write(f"Response status code: {response.status_code}")
-        
         if response.status_code == 200:
             result = response.json()
             
-            # Add to query history
+            # Add to query history - updated to handle new response structure
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            st.session_state.query_history.append({
-                "query": query_text,
-                "timestamp": timestamp,
-                "num_results": len(result.get("results", [])),
-                "has_evaluation": "evaluation" in result and bool(result["evaluation"])
-            })
-            
+            traditional_results = result.get("traditional_rag", {}).get("results", [])
+            agentic_used = result.get("agentic_search", {}).get("used", False)
+           
             return True, result
         elif response.status_code == 401:
             # Authentication failed
@@ -846,7 +839,7 @@ def query_documents(selected_model, query_text, user_id, ground_truth=None, enab
     except Exception as e:
         logger.error(f"Query error: {str(e)}")
         return False, f"Error: {str(e)}"
-
+    
 # Function to create evaluation chart
 def create_evaluation_chart(eval_results):
     """Create a visualization for RAG evaluation metrics"""
@@ -891,25 +884,20 @@ def create_evaluation_chart(eval_results):
     
     return fig
 
-# Define sidebar
+# Function to render the sidebar with navigation and settings
 def render_sidebar():
     st.sidebar.title("📚 App Navigation")
     selected_model =""
     # Determine current page
     if st.session_state.get("authenticated", False):
-        with st.sidebar.expander("⚙️ API Settings", expanded=False):
-            new_url = st.text_input("Base API URL", value=API_ENDPOINTS["base_url"])
-            if st.button("Save Settings"):
-                API_ENDPOINTS["base_url"] = new_url
-                st.success("✅ Settings saved for this session.")
         selected_model = st.selectbox(
             "Select Model",
-            options=["gemini-2.0-flash", "gemini-1.5-pro", "gemini-2.5-flash-preview-04-17"],
+            options=["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-pro", "gemini-2.5-flash-preview-04-17"],
             index=0,
             help="Select the model to use"
         )
         st.sidebar.markdown("---")
-        page = st.sidebar.radio("Select an action:", ["Upload Documents", "Query Documents", "View Documents"])
+        page = st.sidebar.radio("Select an action:", ["Upload Documents", "Query Documents"])
         render_user_sidebar()  # Show user info
     else:
         page = "Login"
@@ -919,7 +907,7 @@ def render_sidebar():
 
     return page, selected_model
 
-# Main application logic
+# Main function to run the Streamlit app
 def main():
     # Render sidebar and get selected page
     page, selected_model = render_sidebar()
@@ -999,7 +987,36 @@ def main():
                                         help="Add a ground truth answer to compare with the generated response")
             
             st.info("RAG evaluation uses Gemini to assess the quality of responses based on retrieved context.")
-    
+        
+        agentic_expander = st.expander("MCP Web Search Setting", expanded=False)
+        with agentic_expander:
+            # Use session state values with callbacks to update session state
+            web_search_with_mcp = st.checkbox(
+                "Enable MCP Web Search", 
+                value=st.session_state.mcp_web_search_enabled,
+                help="Use MCP server for web search when traditional RAG quality is insufficient",
+                key="mcp_checkbox"
+            )
+            
+            # Update session state when checkbox changes
+            if web_search_with_mcp != st.session_state.mcp_web_search_enabled:
+                st.session_state.mcp_web_search_enabled = web_search_with_mcp
+            
+            if web_search_with_mcp:
+                mcp_server_url = st.text_input(
+                    "MCP Server URL", 
+                    value=st.session_state.mcp_server_url,
+                    placeholder="https://your-mcp-server.com/mcp/",
+                    help="URL of the MCP server for web search functionality",
+                    key="mcp_url_input"
+                )
+                
+                # Update session state when URL changes
+                if mcp_server_url != st.session_state.mcp_server_url:
+                    st.session_state.mcp_server_url = mcp_server_url
+            else:
+                mcp_server_url = None
+            
         # Two column layout for query input
         col1, col2 = st.columns([3, 1])
         
@@ -1030,14 +1047,7 @@ def main():
             
             # Submit button
             submit_button = st.button("Submit Query", use_container_width=True)
-            
-            # Clear results button
-            if 'last_query_result' in st.session_state:
-                clear_button = st.button("Clear Results", use_container_width=True)
-                if clear_button:
-                    del st.session_state.last_query_result
-                    st.rerun()
-        
+    
         # Execute query when submit button is clicked
         if submit_button:
             if not query:
@@ -1048,159 +1058,140 @@ def main():
                         selected_model,
                         query, 
                         query_user_id, 
-                        ground_truth=ground_truth,  # New parameter
-                        enable_evaluation=enable_evaluation  # New parameter
+                        ground_truth=ground_truth,  
+                        enable_evaluation=enable_evaluation,
+                        web_search_with_mcp=web_search_with_mcp,
+                        mcp_server_url  = mcp_server_url if web_search_with_mcp else None
                     )
+
+                    # Create tabs for different views of the results
+                    tabs = ["AI Response", "Document Details"]
+                    if "evaluation" in result and result["evaluation"]:
+                        tabs.append("Evaluation")
                     
-                    # Store result in session state
-                    if success:
-                        st.session_state.last_query_result = result
-        
-        # Display query results if available
-        if 'last_query_result' in st.session_state:
-            result = st.session_state.last_query_result
-    
-            # Create tabs for different views of the results
-            if "evaluation" in result and result["evaluation"]:
-                tab1, tab2, tab3 = st.tabs(["AI Response", "Document Details", "Evaluation"])
-            else:
-                tab1, tab2 = st.tabs(["AI Response", "Document Details"])
-        
-            with tab1:
-                # Display the AI-generated response
-                if "response" in result:
-                    response_data = json.loads(result["response"])
-                    st.markdown(response_data.get("answer", "No answer found."))
-                else:
-                    st.info("No AI-generated response available.")
-            
-            with tab2:
-                # Display document results
-                if "results" in result and result["results"]:
-                    st.markdown("### Retrieved Documents")
-                    st.write(f"Found {len(result['results'])} relevant documents")
+                    # Check if MCP based Web search was used
+                    mcp_based_web_search = result.get("mcp_web_search", {}).get("used", False)
                     
-                    # Create expandable sections for each document
-                    for i, doc in enumerate(result["results"]):
-                        score = doc.get('similarity_score', 0)
-                        score_display = f"{score:.4f}" if isinstance(score, (int, float)) else "N/A"
-                        doc_name = doc.get('file_name', doc.get('document_id', f'Document {i+1}'))
+                    tab_objects = st.tabs(tabs)
+                    
+                    # AI Response Tab
+                    with tab_objects[0]:
+                        st.markdown("### Generated Response")
+                        if "response" in result:
+                            response_data = result["response"]
+                            st.markdown(response_data)
+                            
+                            # Show metadata about the response generation
+                            metadata = result.get("metadata", {})
+                            if metadata:
+                                with st.expander("Response Metadata"):
+                                    col1, col2 = st.columns(2)
+                                    with col1:
+                                        st.write(f"**Force Web Search:** {metadata.get('force_web_search', False)}")
+                                        st.write(f"**MCP Client Type:** {metadata.get('mcp_client_type', 'N/A')}")
+                                    with col2:
+                                        if metadata.get('mcp_server_url'):
+                                            st.write(f"**MCP Server:** {metadata['mcp_server_url']}")
+                        else:
+                            st.info("No AI-generated response available.")
+                    
+                    # Document Details Tab - Combined view of all sources
+                    with tab_objects[1]:
+                        st.markdown("### All Document Sources")
                         
-                        with st.expander(f"{doc_name} - Relevance Score: {score_display}"):
-                            # Two columns for metadata and content
-                            col1, col2 = st.columns([1, 1])
+                        # Get traditional RAG results
+                        traditional_results = result.get("traditional_rag", {}).get("results", [])
+                        mcp_web_search = result.get("mcp_web_search", {})
+                        
+                        # Summary of sources
+                        col1, col2, col3 = st.columns(3)
+                        with col1:
+                            st.metric("Traditional RAG Documents", len(traditional_results))
+                        with col2:
+                            web_search_used = mcp_web_search.get("used", False)
+                            st.metric("Web Search Used", "Yes" if web_search_used else "No")
+                        with col3:
+                            total_sources = len(traditional_results) + (1 if web_search_used else 0)
+                            st.metric("Total Sources", total_sources)
+                        
+                        # Display all document sources
+                        if traditional_results or web_search_used:
+                            # Traditional RAG Documents
+                            if traditional_results:
+                                st.markdown("#### 📁 Traditional RAG Documents")
+                                for i, doc in enumerate(traditional_results):
+                                    score = doc.get('similarity_score', 0)
+                                    score_display = f"{score:.4f}" if isinstance(score, (int, float)) else "N/A"
+                                    doc_name = doc.get('file_name', doc.get('document_id', f'Document {i+1}'))
+                                    
+                                    with st.expander(f"📄 {doc_name} - Relevance: {score_display}"):
+                                        col1, col2 = st.columns([1, 1])
+                                        
+                                        with col1:
+                                            st.markdown("**Document Metadata**")
+                                            metadata = {k: v for k, v in doc.items() 
+                                                    if k not in ['embedding_vector'] and not isinstance(v, list) or len(v) < 100}
+                                            st.json(metadata)
+                                        
+                                        with col2:
+                                            st.markdown("**Document Content**")
+                                            if "content" in doc:
+                                                st.write(doc["content"])
+                                            else:
+                                                st.info("No content available")
                             
-                            with col1:
-                                st.markdown("#### Document Metadata")
-                                # Filter out large fields like vectors
-                                metadata = {k: v for k, v in doc.items() 
-                                           if k not in ['embedding_vector'] and not isinstance(v, list) or len(v) < 100}
-                                st.json(metadata)
-                            
-                            with col2:
-                                st.markdown("#### Document Content")
-                                if "content" in doc:
-                                    st.write(doc["content"])
+                            # Web Search Results (if used)
+                            if web_search_used:
+                                st.markdown("#### 🌐 Web Search Results")
+                                search_data = mcp_web_search.get("data")
+                                if search_data:
+                                    with st.expander("🔍 Web Search Content"):
+                                        if isinstance(search_data, str):
+                                            st.text_area("Search Results", search_data, height=200)
+                                        elif isinstance(search_data, dict):
+                                            st.json(search_data)
+                                        else:
+                                            st.write(search_data)
                                 else:
-                                    st.info("No content available")
-                else:
-                    st.info("No relevant documents found. Try a different query or upload more documents.")
-            
-            if "evaluation" in result and result["evaluation"]:
-                with tab3:
-                    st.markdown("### RAG Response Evaluation")
+                                    st.info("Web search was used but no data is available.")
+                            
+                        else:
+                            st.info("No document sources found.")
                     
-                    eval_results = result["evaluation"]
-                    
-                    # Display metrics
-                    metrics_cols = st.columns(len(eval_results))
-                    for i, (metric, value) in enumerate(eval_results.items()):
-                        with metrics_cols[i]:
-                            # Format metric name for display
-                            display_name = " ".join(word.capitalize() for word in metric.split("_"))
-                            st.metric(display_name, f"{value:.2f}")
-                    
-                    # Display evaluation chart
-                    chart = create_evaluation_chart(eval_results)
-                    st.plotly_chart(chart, use_container_width=True)
-                    
-                    # Explain metrics
-                    with st.expander("Understanding Evaluation Metrics"):
-                        st.markdown("""
-                        ### RAG Evaluation Metrics Explained
-                        
-                        - **Answer Relevancy (0-1)**: Measures how directly the answer addresses the question.
-                        
-                        - **Faithfulness (0-1)**: Measures how factually accurate the answer is based only on the provided context.
-                        
-                        - **Context Precision (0-1)**: When ground truth is provided, measures how well the answer aligns with the known correct answer.
-                        
-                        A higher score indicates better performance. Scores above 0.7 are generally considered good.
-                        """)
-
-        # Display query history
-        with st.expander("Query History", expanded=False):
-            if st.session_state.query_history:
-                df = pd.DataFrame(st.session_state.query_history)
-                st.dataframe(df)
-                
-                if st.button("Clear Query History"):
-                    st.session_state.query_history = []
-                    st.rerun()
-            else:
-                st.info("No query history available.")
-
-    # View Documents Page
-    elif page == "View Documents":
-        st.header("Document Management")
-        # Settings for document retrieval
-        col1, col2 = st.columns(2)
+                    # Evaluation Tab (if evaluation is enabled)
+                    if "evaluation" in result and result["evaluation"]:
+                        eval_tab_index = len(tab_objects) - 1
+                        with tab_objects[eval_tab_index]:
+                            st.markdown("### RAG Response Evaluation")
+                            
+                            eval_results = result["evaluation"]
+                            
+                            # Display metrics
+                            metrics_cols = st.columns(len(eval_results))
+                            for i, (metric, value) in enumerate(eval_results.items()):
+                                with metrics_cols[i]:
+                                    # Format metric name for display
+                                    display_name = " ".join(word.capitalize() for word in metric.split("_"))
+                                    st.metric(display_name, f"{value:.2f}")
+                            
+                            # Display evaluation chart
+                            chart = create_evaluation_chart(eval_results)
+                            st.plotly_chart(chart, use_container_width=True)
+                            
+                            # Explain metrics
+                            with st.expander("Understanding Evaluation Metrics"):
+                                st.markdown("""
+                                ### RAG Evaluation Metrics Explained
+                                
+                                - **Answer Relevancy (0-1)**: Measures how directly the answer addresses the question.
+                                
+                                - **Faithfulness (0-1)**: Measures how factually accurate the answer is based only on the provided context.
+                                
+                                - **Context Precision (0-1)**: When ground truth is provided, measures how well the answer aligns with the known correct answer.
+                                
+                                A higher score indicates better performance. Scores above 0.7 are generally considered good.
+                                """)
         
-        with col1:
-            view_user_id = st.text_input(
-                "User ID to view documents:",
-                value=st.session_state.user_id,
-                help="Filter documents by this user ID"
-            )
-        
-        with col2:
-            # This would be implemented with a real API call in production
-            if st.button("Refresh Document List"):
-                with st.spinner("Fetching documents..."):
-                    # Here you would typically query the API for documents
-                    # For now, we'll just use what's in session state
-                    filtered_docs = [
-                        doc for doc in st.session_state.uploaded_docs 
-                        if doc.get('user_id') == view_user_id
-                    ]
-                    st.session_state.filtered_docs = filtered_docs
-                    time.sleep(1)
-                    st.success(f"Found {len(filtered_docs)} documents.")
-        
-        # Display documents
-        if 'filtered_docs' in st.session_state and st.session_state.filtered_docs:
-            st.subheader(f"Documents for User: {view_user_id}")
-            
-            # Create a nicer display using a DataFrame
-            df = pd.DataFrame(st.session_state.filtered_docs)
-            
-            # Add styling
-            st.dataframe(
-                df,
-                column_config={
-                    "document_id": st.column_config.TextColumn("Document ID"),
-                    "file_name": st.column_config.TextColumn("File Name"),
-                    "upload_time": st.column_config.DatetimeColumn("Upload Time"),
-                    "status": st.column_config.TextColumn("Status"),
-                },
-                use_container_width=True
-            )
-       
-        elif 'filtered_docs' in st.session_state:
-            st.info(f"No documents found for user: {view_user_id}")
-        else:
-            st.info("Click 'Refresh Document List' to fetch documents.")
-
 # Run the app
 if __name__ == "__main__":
     main()

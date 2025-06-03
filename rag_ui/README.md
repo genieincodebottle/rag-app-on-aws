@@ -38,10 +38,16 @@ A web interface to upload documents, query them using natural language, and retr
 
 ```bash
 git clone https://github.com/genieincodebottle/rag-app-on-aws.git
+
 cd rag-app-on-aws/rag_ui
-python -m venv venv
-venv\Scripts\activate   # Linux: source venv/bin/activate
-pip install -r requirements.txt
+
+pip install uv # If uv doesn't exist in your system
+
+uv venv
+
+.venv\Scripts\activate   # Linux: source .venv/bin/activate
+
+uv pip install -r requirements.txt
 ```
 
 ### 🛠️ Configuration

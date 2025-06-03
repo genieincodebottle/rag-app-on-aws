@@ -120,3 +120,21 @@ variable "cognito_user_pool_arn" {
   type        = string
   default     = ""
 }
+
+variable "mcp_timeout" {
+  description = "Timeout for MCP requests in seconds"
+  type        = number
+  default     = 60
+}
+
+variable "rag_confidence_threshold" {
+  description = "Confidence threshold for traditional RAG (0.0-1.0)"
+  type        = number
+  default     = 0.7
+}
+
+variable "min_context_length" {
+  description = "Minimum context length required from traditional RAG"
+  type        = number
+  default     = 100
+}

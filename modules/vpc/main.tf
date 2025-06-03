@@ -246,6 +246,7 @@ resource "aws_security_group" "lambda" {
   description = "Security group for Lambda functions"
   vpc_id      = aws_vpc.main.id
 
+  # Allow all outbound traffic (including HTTP/HTTPS for MCP)
   egress {
     from_port   = 0
     to_port     = 0
