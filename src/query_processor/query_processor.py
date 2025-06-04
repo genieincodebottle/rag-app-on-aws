@@ -734,3 +734,4 @@ def handler(event, context):
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
             'body': json.dumps({'message': f"Internal error: {str(e)}"})
         }
+    
