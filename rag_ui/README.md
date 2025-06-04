@@ -13,8 +13,9 @@ A web interface to upload documents, query them using natural language, and retr
 
 - Secure Cognito-based user authentication with auto token refresh
 - Upload, view, and manage various document types
-- AI-powered querying with relevance scoring and history
-- Clean, intuitive Streamlit UI
+- AI-powered querying using RAG with relevance scoring and history
+- RAG Evaluation
+- Uses the Web Search option via a locally or cloud-hosted MCP Server (HTTP Streaming) when RAG results are insufficient.
 
 ### 🔁 Application Flow Diagrams
 
@@ -30,8 +31,8 @@ A web interface to upload documents, query them using natural language, and retr
 
 ### ⚙️ Prerequisites
 
-- Python 3.8+
-- Streamlit 1.45.0+
+- Python 
+- Streamlit 
 - AWS account with backend APIs deployed
 
 ### 🚀 Installation
@@ -102,10 +103,11 @@ Uploaded docs are:
 - Embedded into vectors
 - Indexed for semantic retrieval
 
-### 🔗 Related Projects
+### 🔗 Related Dependencies
 
 - [RAG Backend & Infra](https://github.com/genieincodebottle/rag-app-on-aws): Terraform infrastructure and backend Lambda codebase.
 
+- [MCP Server](https://github.com/genieincodebottle/rag-app-on-aws/mcp_servers): MCP Server running locally
 ---
 
 **Note**: Designed for use with [rag-app-on-aws](https://github.com/genieincodebottle/rag-app-on-aws) backend infrastructure.
