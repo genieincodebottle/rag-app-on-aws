@@ -1,6 +1,6 @@
 """
-Lambda function with LangGraph-based Agentic RAG
-Combines traditional RAG, web search using MCP Server, and intelligent decision-making
+Enhanced Lambda function with LangGraph-based Agentic RAG
+Combines traditional RAG, web search, and intelligent decision-making
 """
 import os
 import json
@@ -18,6 +18,7 @@ from google.genai import types
 from langgraph.graph import StateGraph, END
 from langgraph.graph.message import add_messages
 from langchain_core.messages import BaseMessage, HumanMessage
+from langchain_core.tools import tool
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.prompts import ChatPromptTemplate
 from typing_extensions import Annotated
@@ -97,7 +98,7 @@ class AgentState(TypedDict):
     reasoning_steps: List[str]
     evaluation_results: Dict[str, float]
 
-# Stateless MCP Client for making JSON-RPC requests
+# MCP Client (keeping your existing implementation)
 class StatelessMCPClient:
     def __init__(self, mcp_url: str, timeout: float = 30.0, headers: Optional[Dict[str, str]] = None):
         self.mcp_url = mcp_url
@@ -178,7 +179,7 @@ class StatelessMCPClient:
         except Exception as e:
             return f"Error extracting result: {str(e)}"
 
-# Function to embed query text using Gemini API
+# Database and embedding functions (keeping your existing implementations)
 def embed_query(text: str) -> List[float]:
     try:
         result = genai_client.models.embed_content(
@@ -191,7 +192,6 @@ def embed_query(text: str) -> List[float]:
         logger.error(f"Error generating embedding: {str(e)}")
         return [0.0] * 768
 
-# Function to get Postgres credentials from Secrets Manager
 def get_postgres_credentials():
     try:
         response = secretsmanager.get_secret_value(SecretId=DB_SECRET_ARN)
@@ -200,7 +200,6 @@ def get_postgres_credentials():
         logger.error(f"Error fetching DB credentials: {str(e)}")
         raise
 
-# Function to establish a Postgres connection using credentials
 def get_postgres_connection(creds):
     return psycopg2.connect(
         host=creds['host'],
@@ -210,7 +209,6 @@ def get_postgres_connection(creds):
         dbname=creds['dbname']
     )
 
-# Function to perform similarity search in Postgres
 def similarity_search(query_embedding: List[float], user_id: str, limit: int = 5) -> List[Dict[str, Any]]:
     credentials = get_postgres_credentials()
     conn = get_postgres_connection(credentials)
@@ -251,43 +249,26 @@ def similarity_search(query_embedding: List[float], user_id: str, limit: int = 5
         cursor.close()
         conn.close()
 
-# Function to analyze query characteristics and determine search strategy
+# LangGraph Node Functions
 async def analyze_query_node(state: AgentState) -> AgentState:
     """Analyze the query to determine the search strategy"""
     query = state["query"]
     reasoning_steps = state.get("reasoning_steps", [])
     
-    # Use LLM to analyze query characteristics
-    analysis_prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a query analyzer for a RAG system. Analyze the query and determine:
-        1. Is this asking for recent/current information? (temporal keywords: "recent", "latest", "current", "today", etc.)
-        2. Is this asking for specific document content? (keywords: "my document", "file", "report I uploaded")
-        3. Is this a general knowledge question?
-        4. What level of confidence would traditional document search likely have?
-        
-        Respond with JSON format:
-        {{
-            "query_type": "temporal|document_specific|general_knowledge|mixed",
-            "needs_current_info": boolean,
-            "document_focus": boolean,
-            "recommended_strategy": "traditional_only|web_only|hybrid|iterative",
-            "reasoning": "explanation of the decision"
-        }}"""),
-        ("human", f"Query: {query}")
-    ])
+    # Use rule-based analysis first, then optionally enhance with LLM
+    analysis = analyze_query_with_rules(query)
     
+    # Try to enhance with LLM analysis if needed
     try:
-        response = await llm.ainvoke(analysis_prompt.format_messages())
-        analysis = json.loads(response.content)
+        llm_analysis = await analyze_query_with_llm(query)
+        if llm_analysis:
+            # Merge rule-based and LLM analysis
+            analysis["reasoning"] = f"Rule-based: {analysis['reasoning']}. LLM: {llm_analysis.get('reasoning', '')}"
+            # LLM can override strategy if confidence is high
+            if llm_analysis.get("confidence", 0) > 0.7:
+                analysis["recommended_strategy"] = llm_analysis.get("recommended_strategy", analysis["recommended_strategy"])
     except Exception as e:
-        logger.warning(f"Query analysis failed, using default: {e}")
-        analysis = {
-            "query_type": "mixed",
-            "needs_current_info": False,
-            "document_focus": True,
-            "recommended_strategy": "hybrid",
-            "reasoning": "Default analysis due to parsing error"
-        }
+        logger.warning(f"LLM query analysis failed, using rule-based: {e}")
     
     reasoning_steps.append(f"Query Analysis: {analysis['reasoning']}")
     
@@ -297,7 +278,119 @@ async def analyze_query_node(state: AgentState) -> AgentState:
         "reasoning_steps": reasoning_steps
     }
 
-# Function to perform traditional RAG search
+def analyze_query_with_rules(query: str) -> Dict[str, Any]:
+    """Rule-based query analysis as fallback"""
+    query_lower = query.lower()
+    
+    # Temporal indicators
+    temporal_keywords = ['recent', 'latest', 'current', 'today', 'yesterday', 'now', 'this week', 'this month', 'new', 'updated']
+    has_temporal = any(keyword in query_lower for keyword in temporal_keywords)
+    
+    # Document-specific indicators
+    doc_keywords = ['my document', 'my file', 'uploaded', 'document', 'report', 'pdf', 'file', 'attachment']
+    is_doc_specific = any(keyword in query_lower for keyword in doc_keywords)
+    
+    # Web search indicators
+    web_keywords = ['price', 'cost', 'weather', 'news', 'stock', 'market', 'rate', 'trend']
+    needs_web = any(keyword in query_lower for keyword in web_keywords)
+    
+    # Determine strategy
+    if has_temporal and not is_doc_specific:
+        strategy = "web_only"
+        reasoning = "Query contains temporal keywords and doesn't reference specific documents"
+    elif is_doc_specific and not has_temporal:
+        strategy = "traditional_only"
+        reasoning = "Query references specific documents without temporal requirements"
+    elif needs_web or has_temporal:
+        strategy = "hybrid"
+        reasoning = "Query may benefit from both document search and current information"
+    elif len(query.split()) > 15:
+        strategy = "iterative"
+        reasoning = "Complex query may require multiple search iterations"
+    else:
+        strategy = "hybrid"
+        reasoning = "Default hybrid approach for balanced information retrieval"
+    
+    return {
+        "query_type": "temporal" if has_temporal else ("document_specific" if is_doc_specific else "general_knowledge"),
+        "needs_current_info": has_temporal or needs_web,
+        "document_focus": is_doc_specific,
+        "recommended_strategy": strategy,
+        "reasoning": reasoning,
+        "confidence": 0.8
+    }
+
+async def analyze_query_with_llm(query: str) -> Optional[Dict[str, Any]]:
+    """LLM-based query analysis with robust error handling"""
+    try:
+        # Use a more structured prompt that encourages valid JSON
+        analysis_prompt = ChatPromptTemplate.from_messages([
+            ("system", """You are a query analyzer. Analyze the query and respond ONLY with valid JSON.
+
+Instructions:
+- Determine if the query needs current/recent information
+- Determine if it references specific documents
+- Choose the best search strategy
+
+Valid strategies:
+- "traditional_only": Use only document search
+- "web_only": Use only web search  
+- "hybrid": Use both document and web search
+- "iterative": Use multiple search rounds
+
+Respond with valid JSON only:
+{
+  "needs_current_info": true/false,
+  "document_focus": true/false,
+  "recommended_strategy": "strategy_name",
+  "reasoning": "brief explanation",
+  "confidence": 0.0-1.0
+}"""),
+            ("human", f"Query: {query}")
+        ])
+        
+        response = await llm.ainvoke(analysis_prompt.format_messages())
+        content = response.content.strip()
+        
+        # Try to extract JSON from the response
+        content = extract_json_from_text(content)
+        
+        if content:
+            analysis = json.loads(content)
+            # Validate required fields
+            required_fields = ["needs_current_info", "document_focus", "recommended_strategy", "reasoning"]
+            if all(field in analysis for field in required_fields):
+                return analysis
+        
+        return None
+        
+    except Exception as e:
+        logger.warning(f"LLM analysis error: {e}")
+        return None
+
+def extract_json_from_text(text: str) -> Optional[str]:
+    """Extract JSON from text that might contain other content"""
+    try:
+        # Try the text as-is first
+        json.loads(text)
+        return text
+    except:
+        pass
+    
+    # Look for JSON-like content between braces
+    import re
+    json_pattern = r'\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}'
+    matches = re.findall(json_pattern, text, re.DOTALL)
+    
+    for match in matches:
+        try:
+            json.loads(match)
+            return match
+        except:
+            continue
+    
+    return None
+
 async def traditional_rag_node(state: AgentState) -> AgentState:
     """Perform traditional RAG search"""
     query = state["query"]
@@ -330,7 +423,6 @@ async def traditional_rag_node(state: AgentState) -> AgentState:
             "reasoning_steps": reasoning_steps + [f"Traditional RAG failed: {e}"]
         }
 
-# Function to perform web search using MCP
 async def web_search_node(state: AgentState, mcp_client: StatelessMCPClient) -> AgentState:
     """Perform web search using MCP"""
     query = state["query"]
@@ -359,7 +451,6 @@ async def web_search_node(state: AgentState, mcp_client: StatelessMCPClient) -> 
             "reasoning_steps": reasoning_steps + [f"Web search failed: {e}"]
         }
 
-# Function to decide next action based on current results
 async def decision_node(state: AgentState) -> AgentState:
     """Decide next action based on current results"""
     strategy = state["search_strategy"]
@@ -389,7 +480,6 @@ async def decision_node(state: AgentState) -> AgentState:
         "iteration_count": iteration_count + 1
     }
 
-# Function to generate final response based on available context
 async def generate_response_node(state: AgentState) -> AgentState:
     """Generate final response using available context"""
     query = state["query"]
@@ -409,67 +499,87 @@ async def generate_response_node(state: AgentState) -> AgentState:
     if web_results:
         web_context = f"\n\nCurrent Web Information:\n{str(web_results)[:1000]}..."
     
-    # Generate response
-    response_prompt = ChatPromptTemplate.from_messages([
-        ("system", """You are a helpful AI assistant with access to both user documents and current web information.
-        
-        Provide a comprehensive answer using the available context. 
-        - If using document information, cite the document name
-        - If using web information, mention it's from recent web sources
-        - If information is missing, clearly state what's needed
-        - Be concise but thorough
-        
-        Context from User Documents:
-        {traditional_context}
-        
-        Current Web Information:
-        {web_context}
-        
-        Reasoning Process:
-        {reasoning_process}"""),
-        ("human", "{query}")
-    ])
+    # Generate response with retry logic
+    final_response = None
+    max_retries = 3
     
-    try:
-        response = await llm.ainvoke(response_prompt.format_messages(
-            query=query,
-            traditional_context=traditional_context,
-            web_context=web_context,
-            reasoning_process="\n".join(reasoning_steps)
-        ))
-        
-        final_response = response.content
-        
-        # Calculate confidence score
-        confidence_score = calculate_confidence_score(rag_results, web_results, state.get("rag_assessment", {}))
-        
-        # Determine context sources
-        context_sources = []
-        if rag_results:
-            context_sources.extend([f"Document: {r['file_name']}" for r in rag_results])
-        if web_results:
-            context_sources.append("Web Search Results")
-        
-        reasoning_steps.append(f"Response generated with confidence: {confidence_score:.3f}")
-        
-        return {
-            **state,
-            "final_response": final_response,
-            "confidence_score": confidence_score,
-            "context_sources": context_sources,
-            "reasoning_steps": reasoning_steps
-        }
-    except Exception as e:
-        logger.error(f"Response generation failed: {e}")
-        return {
-            **state,
-            "final_response": "I apologize, but I encountered an error generating the response. Please try again.",
-            "confidence_score": 0.0,
-            "context_sources": [],
-            "reasoning_steps": reasoning_steps + [f"Response generation failed: {e}"]
-        }
+    for attempt in range(max_retries):
+        try:
+            # Generate response
+            response_prompt = ChatPromptTemplate.from_messages([
+                ("system", """You are a helpful AI assistant with access to both user documents and current web information.
+                
+                Provide a comprehensive answer using the available context. 
+                - If using document information, cite the document name
+                - If using web information, mention it's from recent web sources
+                - If information is missing, clearly state what's needed
+                - Be concise but thorough
+                
+                Context from User Documents:
+                {traditional_context}
+                
+                Current Web Information:
+                {web_context}
+                
+                Reasoning Process:
+                {reasoning_process}"""),
+                ("human", "{query}")
+            ])
+            
+            response = await llm.ainvoke(response_prompt.format_messages(
+                query=query,
+                traditional_context=traditional_context or "No relevant documents found.",
+                web_context=web_context or "No web search results available.",
+                reasoning_process="\n".join(reasoning_steps)
+            ))
+            
+            final_response = response.content
+            break
+            
+        except Exception as e:
+            logger.warning(f"Response generation attempt {attempt + 1} failed: {e}")
+            if attempt == max_retries - 1:
+                final_response = generate_fallback_response(query, rag_results, web_results)
+    
+    # Calculate confidence score
+    confidence_score = calculate_confidence_score(rag_results, web_results, state.get("rag_assessment", {}))
+    
+    # Determine context sources
+    context_sources = []
+    if rag_results:
+        context_sources.extend([f"Document: {r['file_name']}" for r in rag_results])
+    if web_results:
+        context_sources.append("Web Search Results")
+    
+    reasoning_steps.append(f"Response generated with confidence: {confidence_score:.3f}")
+    
+    return {
+        **state,
+        "final_response": final_response,
+        "confidence_score": confidence_score,
+        "context_sources": context_sources,
+        "reasoning_steps": reasoning_steps
+    }
 
-# Function to calculate confidence score based on RAG and web results
+def generate_fallback_response(query: str, rag_results: List[Dict], web_results: Optional[str]) -> str:
+    """Generate a fallback response when LLM generation fails"""
+    response_parts = [f"I understand you're asking: {query}\n"]
+    
+    if rag_results:
+        response_parts.append("Based on your documents:")
+        for i, result in enumerate(rag_results[:2], 1):
+            content_preview = result['content'][:200] + "..." if len(result['content']) > 200 else result['content']
+            response_parts.append(f"{i}. From {result['file_name']}: {content_preview}")
+    
+    if web_results:
+        web_preview = str(web_results)[:300] + "..." if len(str(web_results)) > 300 else str(web_results)
+        response_parts.append(f"\nAdditional information from web search: {web_preview}")
+    
+    if not rag_results and not web_results:
+        response_parts.append("I apologize, but I couldn't find relevant information to answer your question. Please try rephrasing your query or check if you have uploaded relevant documents.")
+    
+    return "\n\n".join(response_parts)
+
 def calculate_confidence_score(rag_results: List[Dict], web_results: Optional[str], rag_assessment: Dict) -> float:
     """Calculate confidence score based on available information"""
     score = 0.0
@@ -487,7 +597,6 @@ def calculate_confidence_score(rag_results: List[Dict], web_results: Optional[st
     
     return min(score, 1.0)
 
-# Function to assess the quality of traditional RAG results
 def assess_rag_quality(relevant_chunks: List[Dict[str, Any]], query: str) -> Dict[str, Any]:
     """Assess the quality of traditional RAG results"""
     if not relevant_chunks:
@@ -527,7 +636,7 @@ def assess_rag_quality(relevant_chunks: List[Dict[str, Any]], query: str) -> Dic
         "avg_similarity": avg_similarity
     }
 
-# Gemini RAG Evaluator Class
+# Evaluation function (keeping your existing implementation)
 class GeminiRagEvaluator:
     def __init__(self, model_name, google_api_key):
         self.model_name = model_name
@@ -749,36 +858,36 @@ class AgenticRAG:
     
     def process_query(self, query: str, user_id: str) -> Dict[str, Any]:
         """Process a query through the agentic RAG workflow"""
-        initial_state = AgentState(
-            messages=[HumanMessage(content=query)],
-            query=query,
-            user_id=user_id,
-            traditional_rag_results=[],
-            web_search_results=None,
-            rag_assessment={},
-            search_strategy="hybrid",
-            iteration_count=0,
-            final_response="",
-            confidence_score=0.0,
-            context_sources=[],
-            reasoning_steps=[],
-            evaluation_results={}
-        )
-        
         try:
-            # Run the graph
-            final_state = self.graph.invoke(initial_state)
-            return final_state
+            initial_state = validate_state(AgentState(
+                messages=[HumanMessage(content=query)],
+                query=query,
+                user_id=user_id,
+                traditional_rag_results=[],
+                web_search_results=None,
+                rag_assessment={},
+                search_strategy="hybrid",
+                iteration_count=0,
+                final_response="",
+                confidence_score=0.0,
+                context_sources=[],
+                reasoning_steps=[],
+                evaluation_results={}
+            ))
+            
+            # Run the graph with error handling
+            try:
+                final_state = self.graph.invoke(initial_state)
+                return validate_state(final_state)
+            except Exception as graph_error:
+                logger.error(f"Graph execution failed: {graph_error}")
+                # Return a valid error state instead of crashing
+                return create_error_state(query, user_id, str(graph_error))
+                
         except Exception as e:
             logger.error(f"Agentic RAG processing failed: {e}")
-            return {
-                **initial_state,
-                "final_response": "I apologize, but I encountered an error processing your query. Please try again.",
-                "confidence_score": 0.0,
-                "reasoning_steps": [f"Processing failed: {str(e)}"]
-            }
+            return create_error_state(query, user_id, str(e))
 
-# Function to evaluate RAG response using GeminiRagEvaluator
 def evaluate_rag_response(model_name: str, query: str, answer: str, contexts: List[Dict], ground_truth: Optional[str] = None) -> Dict[str, float]:
     """Evaluate RAG response using GeminiRagEvaluator"""
     try:
@@ -973,3 +1082,104 @@ def handler(event, context):
                 'framework': 'langgraph'
             })
         }
+
+# Additional utility functions for advanced agentic capabilities
+
+class QueryComplexityAnalyzer:
+    """Analyze query complexity to determine optimal strategy"""
+    
+    @staticmethod
+    def analyze_complexity(query: str) -> Dict[str, Any]:
+        """Analyze query complexity and characteristics"""
+        query_lower = query.lower()
+        
+        # Temporal indicators
+        temporal_keywords = ['recent', 'latest', 'current', 'today', 'yesterday', 'now', 'this week', 'this month']
+        has_temporal = any(keyword in query_lower for keyword in temporal_keywords)
+        
+        # Document-specific indicators
+        doc_keywords = ['my document', 'my file', 'uploaded', 'document', 'report', 'pdf']
+        is_doc_specific = any(keyword in query_lower for keyword in doc_keywords)
+        
+        # Comparison indicators
+        comparison_keywords = ['compare', 'versus', 'vs', 'difference', 'better', 'contrast']
+        needs_comparison = any(keyword in query_lower for keyword in comparison_keywords)
+        
+        # Multi-step indicators
+        multistep_keywords = ['first', 'then', 'after', 'step', 'process', 'how to']
+        is_multistep = any(keyword in query_lower for keyword in multistep_keywords)
+        
+        # Calculate complexity score
+        complexity_score = 0
+        if has_temporal:
+            complexity_score += 2
+        if is_doc_specific:
+            complexity_score += 1
+        if needs_comparison:
+            complexity_score += 2
+        if is_multistep:
+            complexity_score += 1
+        if len(query.split()) > 10:
+            complexity_score += 1
+        
+        return {
+            'complexity_score': complexity_score,
+            'has_temporal': has_temporal,
+            'is_doc_specific': is_doc_specific,
+            'needs_comparison': needs_comparison,
+            'is_multistep': is_multistep,
+            'recommended_strategy': QueryComplexityAnalyzer._recommend_strategy(
+                complexity_score, has_temporal, is_doc_specific, needs_comparison
+            )
+        }
+    
+    @staticmethod
+    def _recommend_strategy(complexity_score: int, has_temporal: bool, 
+                          is_doc_specific: bool, needs_comparison: bool) -> str:
+        """Recommend search strategy based on analysis"""
+        if has_temporal and not is_doc_specific:
+            return "web_only"
+        elif is_doc_specific and not has_temporal:
+            return "traditional_only"
+        elif needs_comparison or complexity_score >= 4:
+            return "iterative"
+        else:
+            return "hybrid"
+
+def validate_state(state: AgentState) -> AgentState:
+    """Validate and sanitize state to prevent errors"""
+    # Ensure required fields exist
+    state.setdefault("messages", [])
+    state.setdefault("query", "")
+    state.setdefault("user_id", "system")
+    state.setdefault("traditional_rag_results", [])
+    state.setdefault("web_search_results", None)
+    state.setdefault("rag_assessment", {})
+    state.setdefault("search_strategy", "hybrid")
+    state.setdefault("iteration_count", 0)
+    state.setdefault("final_response", "")
+    state.setdefault("confidence_score", 0.0)
+    state.setdefault("context_sources", [])
+    state.setdefault("reasoning_steps", [])
+    state.setdefault("evaluation_results", {})
+    
+    return state
+
+def create_error_state(query: str, user_id: str, error_message: str) -> AgentState:
+    """Create a valid error state when processing fails"""
+    return validate_state(AgentState(
+        messages=[HumanMessage(content=query)],
+        query=query,
+        user_id=user_id,
+        traditional_rag_results=[],
+        web_search_results=None,
+        rag_assessment={"needs_web_search": False, "reason": "Error occurred"},
+        search_strategy="error",
+        iteration_count=0,
+        final_response=f"I apologize, but I encountered an error: {error_message}. Please try again with a different query.",
+        confidence_score=0.0,
+        context_sources=[],
+        reasoning_steps=[f"Error: {error_message}"],
+        evaluation_results={}
+    ))
+
