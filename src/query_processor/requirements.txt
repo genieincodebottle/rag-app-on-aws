@@ -8,9 +8,3 @@ httpx>=0.28.1
 httpx-sse>=0.4.0
 anyio>=4.9.0
 pydantic>=2.11.5
-
-#Langrange dependencies
-langgraph>=0.4.8
-langchain>=0.3.25
-langchain-core>=0.3.6
-langchain-google-genai>=2.1.5
