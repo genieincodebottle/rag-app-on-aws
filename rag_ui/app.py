@@ -1053,6 +1053,9 @@ def main():
             if not query:
                 st.warning("Please enter a question.")
             else:
+                if 'last_query_result' in st.session_state:
+                    del st.session_state.last_query_result
+
                 with st.spinner("Processing query..."):
                     success, result = query_documents(
                         selected_model,
@@ -1063,134 +1066,135 @@ def main():
                         web_search_with_mcp=web_search_with_mcp,
                         mcp_server_url  = mcp_server_url if web_search_with_mcp else None
                     )
-
-                    # Create tabs for different views of the results
-                    tabs = ["AI Response", "Document Details"]
-                    if "evaluation" in result and result["evaluation"]:
-                        tabs.append("Evaluation")
-                    
-                    # Check if MCP based Web search was used
-                    mcp_based_web_search = result.get("mcp_web_search", {}).get("used", False)
-                    
-                    tab_objects = st.tabs(tabs)
-                    
-                    # AI Response Tab
-                    with tab_objects[0]:
-                        st.markdown("### Generated Response")
-                        if "response" in result:
-                            response_data = result["response"]
-                            st.markdown(response_data)
-                            
-                            # Show metadata about the response generation
-                            metadata = result.get("metadata", {})
-                            if metadata:
-                                with st.expander("Response Metadata"):
-                                    col1, col2 = st.columns(2)
-                                    with col1:
-                                        st.write(f"**Force Web Search:** {metadata.get('force_web_search', False)}")
-                                        st.write(f"**MCP Client Type:** {metadata.get('mcp_client_type', 'N/A')}")
-                                    with col2:
-                                        if metadata.get('mcp_server_url'):
-                                            st.write(f"**MCP Server:** {metadata['mcp_server_url']}")
-                        else:
-                            st.info("No AI-generated response available.")
-                    
-                    # Document Details Tab - Combined view of all sources
-                    with tab_objects[1]:
-                        st.markdown("### All Document Sources")
+                    if success:
+                        st.session_state.last_query_result = result
+                        # Create tabs for different views of the results
+                        tabs = ["AI Response", "Document Details"]
+                        if "evaluation" in result and result["evaluation"]:
+                            tabs.append("Evaluation")
                         
-                        # Get traditional RAG results
-                        traditional_results = result.get("traditional_rag", {}).get("results", [])
-                        mcp_web_search = result.get("mcp_web_search", {})
+                        tab_objects = st.tabs(tabs)
                         
-                        # Summary of sources
-                        col1, col2, col3 = st.columns(3)
-                        with col1:
-                            st.metric("Traditional RAG Documents", len(traditional_results))
-                        with col2:
-                            web_search_used = mcp_web_search.get("used", False)
-                            st.metric("Web Search Used", "Yes" if web_search_used else "No")
-                        with col3:
-                            total_sources = len(traditional_results) + (1 if web_search_used else 0)
-                            st.metric("Total Sources", total_sources)
-                        
-                        # Display all document sources
-                        if traditional_results or web_search_used:
-                            # Traditional RAG Documents
-                            if traditional_results:
-                                st.markdown("#### 📁 Traditional RAG Documents")
-                                for i, doc in enumerate(traditional_results):
-                                    score = doc.get('similarity_score', 0)
-                                    score_display = f"{score:.4f}" if isinstance(score, (int, float)) else "N/A"
-                                    doc_name = doc.get('file_name', doc.get('document_id', f'Document {i+1}'))
-                                    
-                                    with st.expander(f"📄 {doc_name} - Relevance: {score_display}"):
-                                        col1, col2 = st.columns([1, 1])
-                                        
+                        # AI Response Tab
+                        with tab_objects[0]:
+                            st.markdown("### Generated Response")
+                            if "response" in result:
+                                response_data = result["response"]
+                                st.markdown(response_data)
+                                
+                                # Show metadata about the response generation
+                                metadata = result.get("metadata", {})
+                                if metadata:
+                                    with st.expander("Response Metadata"):
+                                        col1, col2 = st.columns(2)
                                         with col1:
-                                            st.markdown("**Document Metadata**")
-                                            metadata = {k: v for k, v in doc.items() 
-                                                    if k not in ['embedding_vector'] and not isinstance(v, list) or len(v) < 100}
-                                            st.json(metadata)
-                                        
+                                            st.write(f"**Force Web Search:** {metadata.get('force_web_search', False)}")
+                                            st.write(f"**MCP Client Type:** {metadata.get('mcp_client_type', 'N/A')}")
                                         with col2:
-                                            st.markdown("**Document Content**")
-                                            if "content" in doc:
-                                                st.write(doc["content"])
+                                            if metadata.get('mcp_server_url'):
+                                                st.write(f"**MCP Server:** {metadata['mcp_server_url']}")
+                            else:
+                                st.info("No AI-generated response available.")
+                        
+                        # Document Details Tab - Combined view of all sources
+                        with tab_objects[1]:
+                            st.markdown("### All Document Sources")
+                            
+                            mcp_web_search = result.get("mcp_web_search", {})
+                            # Get traditional RAG results
+                            traditional_results = result.get("traditional_rag", {}).get("results", [])
+                            
+                            
+                            # Summary of sources
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.metric("Traditional RAG Documents", len(traditional_results))
+                            with col2:
+                                web_search_used = mcp_web_search.get("used", False)
+                                st.metric("Web Search Used", "Yes" if web_search_used else "No")
+                            with col3:
+                                total_sources = len(traditional_results) + (1 if web_search_used else 0)
+                                st.metric("Total Sources", total_sources)
+                            
+                            # Display all document sources
+                            if traditional_results or web_search_used:
+                                # Traditional RAG Documents
+                                if traditional_results:
+                                    st.markdown("#### 📁 Traditional RAG Documents")
+                                    for i, doc in enumerate(traditional_results):
+                                        score = doc.get('similarity_score', 0)
+                                        score_display = f"{score:.4f}" if isinstance(score, (int, float)) else "N/A"
+                                        doc_name = doc.get('file_name', doc.get('document_id', f'Document {i+1}'))
+                                        
+                                        with st.expander(f"📄 {doc_name} - Relevance: {score_display}"):
+                                            col1, col2 = st.columns([1, 1])
+                                            
+                                            with col1:
+                                                st.markdown("**Document Metadata**")
+                                                metadata = {k: v for k, v in doc.items() 
+                                                        if k not in ['embedding_vector'] and not isinstance(v, list) or len(v) < 100}
+                                                st.json(metadata)
+                                            
+                                            with col2:
+                                                st.markdown("**Document Content**")
+                                                if "content" in doc:
+                                                    st.write(doc["content"])
+                                                else:
+                                                    st.info("No content available")
+                                
+                                # Web Search Results (if used)
+                                if web_search_used:
+                                    st.markdown("#### 🌐 Web Search Results")
+                                    search_data = mcp_web_search.get("data")
+                                    if search_data:
+                                        with st.expander("🔍 Web Search Content"):
+                                            if isinstance(search_data, str):
+                                                st.text_area("Search Results", search_data, height=200)
+                                            elif isinstance(search_data, dict):
+                                                st.json(search_data)
                                             else:
-                                                st.info("No content available")
-                            
-                            # Web Search Results (if used)
-                            if web_search_used:
-                                st.markdown("#### 🌐 Web Search Results")
-                                search_data = mcp_web_search.get("data")
-                                if search_data:
-                                    with st.expander("🔍 Web Search Content"):
-                                        if isinstance(search_data, str):
-                                            st.text_area("Search Results", search_data, height=200)
-                                        elif isinstance(search_data, dict):
-                                            st.json(search_data)
-                                        else:
-                                            st.write(search_data)
-                                else:
-                                    st.info("Web search was used but no data is available.")
-                            
-                        else:
-                            st.info("No document sources found.")
-                    
-                    # Evaluation Tab (if evaluation is enabled)
-                    if "evaluation" in result and result["evaluation"]:
-                        eval_tab_index = len(tab_objects) - 1
-                        with tab_objects[eval_tab_index]:
-                            st.markdown("### RAG Response Evaluation")
-                            
-                            eval_results = result["evaluation"]
-                            
-                            # Display metrics
-                            metrics_cols = st.columns(len(eval_results))
-                            for i, (metric, value) in enumerate(eval_results.items()):
-                                with metrics_cols[i]:
-                                    # Format metric name for display
-                                    display_name = " ".join(word.capitalize() for word in metric.split("_"))
-                                    st.metric(display_name, f"{value:.2f}")
-                            
-                            # Display evaluation chart
-                            chart = create_evaluation_chart(eval_results)
-                            st.plotly_chart(chart, use_container_width=True)
-                            
-                            # Explain metrics
-                            with st.expander("Understanding Evaluation Metrics"):
-                                st.markdown("""
-                                ### RAG Evaluation Metrics Explained
+                                                st.write(search_data)
+                                    else:
+                                        st.info("Web search was used but no data is available.")
                                 
-                                - **Answer Relevancy (0-1)**: Measures how directly the answer addresses the question.
+                            else:
+                                st.info("No document sources found.")
+                        
+                        # Evaluation Tab (if evaluation is enabled)
+                        if "evaluation" in result and result["evaluation"]:
+                            eval_tab_index = len(tab_objects) - 1
+                            with tab_objects[eval_tab_index]:
+                                st.markdown("### RAG Response Evaluation")
                                 
-                                - **Faithfulness (0-1)**: Measures how factually accurate the answer is based only on the provided context.
+                                eval_results = result["evaluation"]
                                 
-                                - **Context Precision (0-1)**: When ground truth is provided, measures how well the answer aligns with the known correct answer.
+                                # Display metrics
+                                metrics_cols = st.columns(len(eval_results))
+                                for i, (metric, value) in enumerate(eval_results.items()):
+                                    with metrics_cols[i]:
+                                        # Format metric name for display
+                                        display_name = " ".join(word.capitalize() for word in metric.split("_"))
+                                        st.metric(display_name, f"{value:.2f}")
                                 
-                                A higher score indicates better performance. Scores above 0.7 are generally considered good.
-                                """)
+                                # Display evaluation chart
+                                chart = create_evaluation_chart(eval_results)
+                                st.plotly_chart(chart, use_container_width=True)
+                                
+                                # Explain metrics
+                                with st.expander("Understanding Evaluation Metrics"):
+                                    st.markdown("""
+                                    ### RAG Evaluation Metrics Explained
+                                    
+                                    - **Answer Relevancy (0-1)**: Measures how directly the answer addresses the question.
+                                    
+                                    - **Faithfulness (0-1)**: Measures how factually accurate the answer is based only on the provided context.
+                                    
+                                    - **Context Precision (0-1)**: When ground truth is provided, measures how well the answer aligns with the known correct answer.
+                                    
+                                    A higher score indicates better performance. Scores above 0.7 are generally considered good.
+                                    """)
+                    else:
+                        st.error(f"Query failed: {result}")                
         
 # Run the app
 if __name__ == "__main__":

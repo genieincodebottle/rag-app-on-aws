@@ -1,6 +1,8 @@
-### 🔎 SerpApi Web Search (Model Context Protocol) MCP Server
+## 🧠🔗 Remote MCP Server based on Streaming Http Transport protocol for Real Time Web Search
 
-This project implements a streamable HTTP-based MCP server for performing Google web searches using SerpApi. Built using FastMCP, it exposes a web_search tool and a health_check endpoint for integration with LLM agents or custom apps.
+Connect your LLM powered app with real-time Google search results using this streamable Http Transport based Model Context Protocol (MCP) Server.
+
+Built with ⚡FastMCP and 🔍SerpApi - perfect for RAG pipelines, agent tools or experimental AI workflows.
 
 ### 🚀 Features
 
@@ -42,13 +44,13 @@ SerpAPI API Key (Free Quota) -> https://serpapi.com/dashboard
 Run the following command to start the MCP server on localhost at port 8000 (you can change the port if needed)
 
 ```bash
-python web_search_mcp_server.py --port 8000
+python web_search_mcp_server.py --host localhost --port 8000
 ```
 
 To expose your local server to the internet (required because AWS Lambda cannot access localhost), choose one of the following methods. Be sure to update the port if you're not using 8000.
 
-✅ Option 1 (Recommended): Use Cloudflare Tunnel (Free)
-Run the following commands in Windows PowerShell to download and start a secure tunnel. This will provide a public URL for accessing your local MCP server in the RAG UI.
+✅ Option 1 (Recommended): Use Cloudflare Tunnel (Free without login)
+Run the following commands in Windows PowerShell to start a secure tunnel and get a public URL. This URL allows external access to your local MCP server in the RAG UI for testing purposes.
 
   ```bash
   iwr -useb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe -OutFile cloudflared.exe
@@ -57,7 +59,7 @@ Run the following commands in Windows PowerShell to download and start a secure 
   ```
 
 ✅ Option 2: Use Serveo (Quick SSH Tunnel)
-Run this command in Windows PowerShell or Git Bash to open an SSH tunnel and expose your local server:
+Run this command in Windows PowerShell or Git Bash to open an SSH tunnel and expose your local server for testing purpose:
 
  ```bash
  ssh -R 80:localhost:8000 serveo.net
