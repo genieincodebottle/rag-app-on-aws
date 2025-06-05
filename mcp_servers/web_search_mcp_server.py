@@ -1,12 +1,13 @@
 """
 SerpApi based Web Search MCP Server with HTTP Streamable Transport
+Configured for Stateless Http Requests
 """
 import os
+import logging
 import asyncio
 import argparse
 from typing import Any, Dict
 from mcp.server.fastmcp import FastMCP
-import logging
 import uvicorn
 from dotenv import load_dotenv
 from serpapi.google_search import GoogleSearch
@@ -17,15 +18,21 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-# Create the MCP server with HTTP streamable configuration
+# Initialize FastMCP server with Streamable HTTP transport
 mcp = FastMCP(
     name="SerpApi Search Server",
-    description="Web search server using SerpApi",
+    instructions="Web search server using SerpApi",
+    # If needs to return JSON responses
     json_response=True,
-    stateless_http=True
+    # Stateless when each request is independent
+    stateless_http=True,
+    # Production settings
+    warn_on_duplicate_tools=True,
+    warn_on_duplicate_resources=True,
+    warn_on_duplicate_prompts=True,
+    debug=True  # Disable debug mode for production
 )
 
-# SerpApi API configuration
 SERPAPI_API_KEY = os.getenv("SERPAPI_API_KEY")
 
 if not SERPAPI_API_KEY:
@@ -66,90 +73,192 @@ class SerpApiClient:
 # Initialize SerpApi client
 serpapi_client = SerpApiClient(SERPAPI_API_KEY) if SERPAPI_API_KEY else None
 
-@mcp.tool()
+@mcp.tool(
+    name="web_search",
+    description="Search the web using SerpApi with support for localized results."
+)
 async def web_search(query: str, num_results: int = 10, location: str = None) -> str:
     """
     Search the web using SerpApi
     
     Args:
-        query: The search query
+        query: The search query (required)
         num_results: Number of results to return (default: 10, max: 100)
-        location: Optional location for localized results
+        location: Optional location for localized results (e.g., "New York, NY", "London, UK")
     
     Returns:
-        Formatted search results as text
+        Formatted search results optimized for Lambda client consumption
     """
     if not serpapi_client:
-        return "WEB SEARCH Error: SERPAPI_API_KEY not configured"
+        return "ERROR: SERPAPI_API_KEY not configured. Please set the environment variable."
     
-    if not query.strip():
-        return "WEB SEARCH Error: Query cannot be empty"
+    if not query or not query.strip():
+        return "ERROR: Search query cannot be empty."
     
-    if num_results < 1 or num_results > 100:
-        return "WEB SEARCH Error: num_results must be between 1 and 100"
+    # Validate num_results
+    if not isinstance(num_results, int) or num_results < 1 or num_results > 100:
+        num_results = 10  # Default fallback
+        logger.warning(f"Invalid num_results provided, using default: {num_results}")
     
     try:
+        logger.info(f"Lambda client search request: '{query}' ({num_results} results, location: {location})")
         results = await serpapi_client.search(query, num_results, location)
         
-        # Format the results for better Lambda client consumption
+        # Format results for optimal Lambda consumption (structured but readable)
         formatted_results = []
-        formatted_results.append(f"Search Results for: '{query}'")
-        if location:
-            formatted_results.append(f"Location: {location}")
         
-        # Add organic results
-        if "organic_results" in results:
-            for i, result in enumerate(results["organic_results"][:num_results], 1):
-                title = result.get("title", "No title")
-                link = result.get("link", "No link")
-                snippet = result.get("snippet", "No description")
+        # Header with search info
+        formatted_results.append(f"SEARCH RESULTS FOR: {query}")
+        if location:
+            formatted_results.append(f"LOCATION: {location}")
+        
+        search_metadata = results.get("search_information", {})
+        if search_metadata.get("total_results"):
+            formatted_results.append(f"TOTAL RESULTS: {search_metadata['total_results']:,}")
+        
+        formatted_results.append("-" * 60)
+        
+        # Organic search results
+        organic_results = results.get("organic_results", [])
+        if organic_results:
+            formatted_results.append("\nORGANIC RESULTS:")
+            for i, result in enumerate(organic_results[:num_results], 1):
+                title = result.get("title", "No title").strip()
+                link = result.get("link", "No link").strip()
+                snippet = result.get("snippet", "No description").strip()
                 
                 formatted_results.append(f"\n{i}. {title}")
-                formatted_results.append(f"   Link: {link}")
-                formatted_results.append(f"   Description: {snippet}")
+                formatted_results.append(f"   URL: {link}")
+                formatted_results.append(f"   Summary: {snippet}")
+                
+                # Add displayed link if different from actual link
+                if result.get("displayed_link"):
+                    formatted_results.append(f"   Display URL: {result['displayed_link']}")
         
-        # Add answer box if available
+        # Answer box (featured snippet)
         if "answer_box" in results:
             answer_box = results["answer_box"]
-            formatted_results.append(f"\n\nAnswer Box:")
-            formatted_results.append(f"Title: {answer_box.get('title', 'N/A')}")
-            formatted_results.append(f"Answer: {answer_box.get('answer', answer_box.get('snippet', 'N/A'))}")
-            formatted_results.append(f"Source: {answer_box.get('link', 'N/A')}")
+            formatted_results.append(f"\n\nFEATURED ANSWER:")
+            
+            if answer_box.get("title"):
+                formatted_results.append(f"Title: {answer_box['title']}")
+            
+            if answer_box.get("answer"):
+                formatted_results.append(f"Answer: {answer_box['answer']}")
+            elif answer_box.get("snippet"):
+                formatted_results.append(f"Snippet: {answer_box['snippet']}")
+            
+            if answer_box.get("link"):
+                formatted_results.append(f"Source: {answer_box['link']}")
         
-        # Add knowledge graph if available
+        # Knowledge graph
         if "knowledge_graph" in results:
             kg = results["knowledge_graph"]
-            formatted_results.append(f"\n\nKnowledge Graph:")
-            formatted_results.append(f"Title: {kg.get('title', 'N/A')}")
-            formatted_results.append(f"Type: {kg.get('type', 'N/A')}")
-            formatted_results.append(f"Description: {kg.get('description', 'N/A')}")
+            formatted_results.append(f"\n\nKNOWLEDGE PANEL:")
+            
+            if kg.get("title"):
+                formatted_results.append(f"Entity: {kg['title']}")
+            if kg.get("type"):
+                formatted_results.append(f"Type: {kg['type']}")
+            if kg.get("description"):
+                formatted_results.append(f"Description: {kg['description']}")
+            if kg.get("source", {}).get("name"):
+                formatted_results.append(f"Source: {kg['source']['name']}")
         
-        # Add related questions if available
-        if "related_questions" in results:
-            formatted_results.append(f"\n\nRelated Questions:")
-            for i, question in enumerate(results["related_questions"][:5], 1):
-                formatted_results.append(f"{i}. {question.get('question', 'N/A')}")
+        # Related questions (People Also Ask)
+        related_questions = results.get("related_questions", [])
+        if related_questions:
+            formatted_results.append(f"\n\nRELATED QUESTIONS:")
+            for i, question in enumerate(related_questions[:3], 1):  # Limit to 3 for Lambda
+                if question.get("question"):
+                    formatted_results.append(f"{i}. {question['question']}")
+                    if question.get("snippet"):
+                        formatted_results.append(f"   Answer: {question['snippet']}")
         
-        return "\n".join(formatted_results)
+        # News results if available
+        if "news_results" in results:
+            news = results["news_results"][:3]  # Limit news results
+            if news:
+                formatted_results.append(f"\n\nNEWS:")
+                for i, article in enumerate(news, 1):
+                    formatted_results.append(f"{i}. {article.get('title', 'No title')}")
+                    if article.get("date"):
+                        formatted_results.append(f"   Date: {article['date']}")
+                    if article.get("source"):
+                        formatted_results.append(f"   Source: {article['source']}")
+        
+        # Add search timing for Lambda monitoring
+        if search_metadata.get("time_taken_displayed"):
+            formatted_results.append(f"\n\nSearch completed in: {search_metadata['time_taken_displayed']}")
+        
+        result_text = "\n".join(formatted_results)
+        logger.info(f"Search completed for Lambda client. Returned {len(organic_results)} organic results.")
+        return result_text
         
     except Exception as e:
-        logger.error(f"Search error: {e}")
-        return f"Error performing search: {str(e)}"
+        error_msg = f"Search error: {str(e)}"
+        logger.error(f"Lambda client search failed: {error_msg}")
+        return f"ERROR: {error_msg}"
 
-# Add health check endpoint for Lambda client testing
-@mcp.tool()
+@mcp.tool(
+    name="health_check",
+    description="Health check endpoint for monitoring the MCP server"
+)
 async def health_check() -> str:
-    """Health check endpoint for Lambda client testing"""
-    return "MCP SerpApi Server is healthy and ready"
+    """
+    Health check for client monitoring
+    
+    Returns:
+        Server status information
+    """
+    import time
+    
+    status_items = [
+        "STATUS: HEALTHY",
+        f"TIMESTAMP: {int(time.time())}",
+        f"SERVER: SerpApi MCP Server",
+        f"TRANSPORT: Streamable HTTP (Stateless)",
+        f"CONFIGURATION:",
+        f"  - JSON Response: {mcp.settings.json_response}",
+        f"  - Stateless: {mcp.settings.stateless_http}",
+        f"API_KEY: {'CONFIGURED' if SERPAPI_API_KEY else 'MISSING'}",
+        f"TOOLS: web_search, health_check",
+    ]
+    
+    return "\n".join(status_items)
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Run MCP SerpApi server with HTTP streamable transport")
-    parser.add_argument("--port", type=int, default=8000, help="Localhost port to listen on")
+    parser = argparse.ArgumentParser(description="Run MCP SerpApi server optimized for AWS Lambda clients")
+    parser.add_argument("--port", type=int, default=8000, help="Port to listen on")
+    parser.add_argument("--host", type=str, default="localhost", help="Host to bind to (0.0.0.0 for production)")
+    parser.add_argument("--log-level", type=str, default="INFO", choices=["DEBUG", "INFO", "WARNING", "ERROR"])
     args = parser.parse_args()
     
-    print(f"Starting SerpApi MCP Server with HTTP streamable transport on port {args.port}...")
-    print("Make sure to set SERPAPI_API_KEY environment variable")
-    print(f"FastMCP Configuration: json_response=True, stateless_http=True")
+    # Update configuration
+    logging.getLogger().setLevel(getattr(logging, args.log_level))
+    mcp.settings.host = args.host
+    mcp.settings.port = args.port
+    mcp.settings.log_level = args.log_level
     
-    # Start the server with HTTP streamable transport
-    uvicorn.run(mcp.streamable_http_app, host="localhost", port=args.port)
+    print("SerpApi MCP Server based on Streamable HTTP Transport")
+    print(f"MCP Endpoint: http://{args.host}:{args.port}{mcp.settings.streamable_http_path}")
+    print(f"Health Check: http://{args.host}:{args.port}/health")
+    print(f"Server Info: http://{args.host}:{args.port}/info")
+    print("Transport: streamable_http")
+    print("Mode: stateless (no session persistence needed)")
+    
+    try:
+        uvicorn.run(
+            mcp.streamable_http_app(),
+            host=args.host,
+            port=args.port,
+            log_level=args.log_level.lower(),
+            access_log=True,
+            # Production optimizations
+            workers=1,  # Single worker for MCP
+        )
+    except KeyboardInterrupt:
+        print("\n🛑 Server stopped")
+    except Exception as e:
+        print(f"❌ Server error: {e}")
+        logger.error(f"Server startup failed: {e}")

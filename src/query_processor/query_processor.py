@@ -1,7 +1,7 @@
 """
-Lambda function with MCP Stateless HTTP Streaming integration
-Works with MCP servers deployed locally or in the cloud.
-This function performs Web Search if traiditional RAG is inefficient using stateless MCP http streamling calls.
+Lambda function integrated with an MCP Server using Stateless Streamable HTTP Transport.
+Supports both local and cloud-deployed MCP servers.
+Performs web search via MCP when traditional RAG methods are insufficient
 """
 import os
 import json
@@ -68,6 +68,7 @@ class DecimalEncoder(json.JSONEncoder):
             return float(o)
         return super().default(o)
 
+# Stateless MCP client for Lambda integration
 class StatelessMCPClient:
     """
     Stateless MCP client for Lambda integration.
@@ -84,9 +85,9 @@ class StatelessMCPClient:
         Initialize the stateless MCP client.
         
         Args:
-            mcp_url: The MCP server URL (Lambda function URL or HTTP endpoint)
+            mcp_url: The MCP server URL
             timeout: HTTP timeout for requests
-            headers: Optional additional headers
+            headers: headers
         """
         self.mcp_url = mcp_url
         self.timeout = timeout
@@ -415,7 +416,7 @@ async def perform_mcp_web_search(query: str, mcp_client) -> Dict[str, Any]:
 
 def generate_response(model_name: str, query: str, relevant_chunks: List[Dict[str, Any]], web_search_data: Optional[str] = None) -> str:
     """
-    Generate response using both traditional RAG context and web search data
+    Generate response using both traditional RAG context and web search data (when traditional RAG is insufficient). 
     """
     # Prepare traditional context
     traditional_context = ""
@@ -684,7 +685,6 @@ def handler(event, context):
         logger.info(f"Web search data: {web_search_data}")
         # Step 4: Generate response
         response = generate_response(model_name, query, relevant_chunks, web_search_data)
-        logger.info(f"Generated response: {response}")
         # Step 5: Evaluate if enabled
         evaluation_results = {}
         if enable_evaluation:
@@ -734,3 +734,4 @@ def handler(event, context):
             'headers': {'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*'},
             'body': json.dumps({'message': f"Internal error: {str(e)}"})
         }
+    
