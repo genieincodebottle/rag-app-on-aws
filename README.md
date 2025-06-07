@@ -16,7 +16,6 @@ Terraform-based **Infrastructure as Code (IaC)** to deploy a complete AWS backen
 
 [![Watch the video](https://img.youtube.com/vi/x2P4Ee6PYNg/0.jpg)](https://www.youtube.com/watch?v=x2P4Ee6PYNg)
 
-
 ---
 
 ### 🔍 Overview
