@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/genieincodebottle-rag-app-on-aws-badge.png)](https://mseep.ai/app/genieincodebottle-rag-app-on-aws)
+
 <div align="center">
     <img src="./images/rag-app.png" alt="RAG App on"/>
 </div>
