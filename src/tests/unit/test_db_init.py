@@ -276,9 +276,9 @@ class TestDbInit(unittest.TestCase):
         
         # Verify results
         self.assertFalse(result)
-        mock_check_dns.assert_called_with("test-host")                  # ✅ was called at least once
-        self.assertEqual(mock_check_dns.call_count, 4)                  # ✅ was called exactly 4 times
-        mock_check_dns.assert_has_calls([call("test-host")] * 4)        # ✅ was called 4 times with same arg
+        mock_check_dns.assert_called_with("test-host")                  # was called at least once
+        self.assertEqual(mock_check_dns.call_count, 4)                  # was called exactly 4 times
+        mock_check_dns.assert_has_calls([call("test-host")] * 4)        # was called 4 times with same arg
         self.assertEqual(mock_psycopg2.connect.call_count, 4)  # Initial + 3 retries
         self.assertEqual(mock_sleep.call_count, 3)  # Sleep between retries
         

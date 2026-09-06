@@ -258,7 +258,7 @@ if __name__ == "__main__":
             workers=1,  # Single worker for MCP
         )
     except KeyboardInterrupt:
-        print("\n🛑 Server stopped")
+        print("\n Server stopped")
     except Exception as e:
-        print(f"❌ Server error: {e}")
+        print(f"Server error: {e}")
         logger.error(f"Server startup failed: {e}")

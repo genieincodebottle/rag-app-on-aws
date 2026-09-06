@@ -32,7 +32,7 @@ ENABLE_EVALUATION = os.getenv("ENABLE_EVALUATION", "true").lower() == "true"
 # Set page config
 st.set_page_config(
     page_title="RAG Application",
-    page_icon="📄",
+    page_icon="",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -652,14 +652,14 @@ def render_user_sidebar():
 
 # Function to upload document
 def upload_document(file, user_id):
-    # 🔐 Validate session
+    # Validate session
     if not check_token_refresh():
         st.error("Session expired. Please log in again.")
         logout_user()
         st.rerun()
         return False, "Authentication failed."
 
-    # 📦 Prepare file payload
+    # Prepare file payload
     payload = {
         "file_name": file.name,
         "mime_type": file.type or "application/octet-stream",
@@ -667,7 +667,7 @@ def upload_document(file, user_id):
         "file_content": base64.b64encode(file.getvalue()).decode()
     }
 
-    # 🌐 Prepare API request
+    # Prepare API request
     upload_url = f"{API_ENDPOINTS['base_url']}{API_ENDPOINTS['upload']}"
     headers = get_headers()
 
@@ -886,7 +886,7 @@ def create_evaluation_chart(eval_results):
 
 # Function to render the sidebar with navigation and settings
 def render_sidebar():
-    st.sidebar.title("📚 App Navigation")
+    st.sidebar.title("App Navigation")
     selected_model =""
     # Determine current page
     if st.session_state.get("authenticated", False):
@@ -903,7 +903,7 @@ def render_sidebar():
         page = "Login"
 
     st.sidebar.markdown("---")
-    st.sidebar.caption("🔖 Version: RAG App on AWS v0.1")
+    st.sidebar.caption("Version: RAG App on AWS v0.1")
 
     return page, selected_model
 
@@ -1120,13 +1120,13 @@ def main():
                             if traditional_results or web_search_used:
                                 # Traditional RAG Documents
                                 if traditional_results:
-                                    st.markdown("#### 📁 Traditional RAG Documents")
+                                    st.markdown("#### Traditional RAG Documents")
                                     for i, doc in enumerate(traditional_results):
                                         score = doc.get('similarity_score', 0)
                                         score_display = f"{score:.4f}" if isinstance(score, (int, float)) else "N/A"
                                         doc_name = doc.get('file_name', doc.get('document_id', f'Document {i+1}'))
                                         
-                                        with st.expander(f"📄 {doc_name} - Relevance: {score_display}"):
+                                        with st.expander(f"{doc_name} - Relevance: {score_display}"):
                                             col1, col2 = st.columns([1, 1])
                                             
                                             with col1:
@@ -1144,10 +1144,10 @@ def main():
                                 
                                 # Web Search Results (if used)
                                 if web_search_used:
-                                    st.markdown("#### 🌐 Web Search Results")
+                                    st.markdown("#### Web Search Results")
                                     search_data = mcp_web_search.get("data")
                                     if search_data:
-                                        with st.expander("🔍 Web Search Content"):
+                                        with st.expander("Web Search Content"):
                                             if isinstance(search_data, str):
                                                 st.text_area("Search Results", search_data, height=200)
                                             elif isinstance(search_data, dict):

@@ -147,13 +147,13 @@ def main():
         # Summarize results
         logger.info("\n----- Connectivity Test Summary -----")
         logger.info(f"Database Host: {credentials['host']}")
-        logger.info(f"DNS Resolution: {'✅ Success' if dns_success else '❌ Failed'}")
+        logger.info(f"DNS Resolution: {'Success' if dns_success else 'Failed'}")
         if dns_success:
             logger.info(f"IP Address: {dns_result}")
         else:
             logger.info(f"DNS Error: {dns_result}")
         
-        logger.info(f"Database Connection: {'✅ Success' if conn_success else '❌ Failed'}")
+        logger.info(f"Database Connection: {'Success' if conn_success else 'Failed'}")
         if conn_success:
             logger.info(f"Connection Info: {conn_result}")
         else:

@@ -5,11 +5,11 @@ A Streamlit based web app for Retrieval Augmented Generation (RAG) powered by AW
 ![App](./images/ui.png)
 
 
-### 🧩 Overview
+### Overview
 
 A web interface to upload documents, query them using natural language, and retrieve AI-generated responses via an AWS-powered RAG backend using Google's free-tier Gemini Pro and Embedding models.
 
-### ✨ Features
+### Features
 
 - Secure Cognito-based user authentication with auto token refresh
 - Upload, view, and manage various document types
@@ -17,25 +17,25 @@ A web interface to upload documents, query them using natural language, and retr
 - RAG Evaluation
 - Uses the Web Search option via a locally or cloud-hosted MCP Server (HTTP Streaming) when RAG results are insufficient.
 
-### 🔁 Application Flow Diagrams
+### Application Flow Diagrams
 
 - [Authentication Flow](./images/auth_sequence.png)
 - [Doc Upload Flow](./images/document_upload_sequence.png)
 - [Doc Processing Flow](./images/doc_processing_sequence.png)
 - [Query Processing Flow](./images/query_processing_sequence.png)
 
-### 🏗️ System Architecture
+### System Architecture
 
 - **Frontend**: Streamlit UI
 - **Backend**: AWS API Gateway, Lambda, Cognito, S3, RDS/OpenSearch, Bedrock (or similar)
 
-### ⚙️ Prerequisites
+### Prerequisites
 
 - Python 
 - Streamlit 
 - AWS account with backend APIs deployed
 
-### 🚀 Installation
+### Installation
 
 ```bash
 git clone https://github.com/genieincodebottle/rag-app-on-aws.git
@@ -51,7 +51,7 @@ uv venv
 uv pip install -r requirements.txt
 ```
 
-### 🛠️ Configuration
+### Configuration
 
 Create a `.env` file:
 
@@ -78,7 +78,7 @@ Once the GitHub Action pipeline completes successfully, you can download the zip
 ![env-variable](./images/env-variable.png)
 
 
-### 💡 Usage
+### Usage
 
 ```bash
 streamlit run app.py
@@ -86,24 +86,24 @@ streamlit run app.py
 
 Visit `http://localhost:8501`, register or log in, upload documents, and start querying.
 
-### 🔌 API Endpoints
+### API Endpoints
 
 - `/auth`: Register, login, refresh token, password reset
 - `/upload`: Upload and track documents
 - `/query`: Ask natural language questions, get AI responses
 
-### 🔐 Authentication
+### Authentication
 
 Uses Cognito with JWTs, email verification, and password reset.
 
-### 📄 Document Management
+### Document Management
 
 Uploaded docs are:
 - Converted and chunked
 - Embedded into vectors
 - Indexed for semantic retrieval
 
-### 🔗 Related Dependencies
+### Related Dependencies
 
 - [RAG Backend & Infra](https://github.com/genieincodebottle/rag-app-on-aws): Terraform infrastructure and backend Lambda codebase.
 

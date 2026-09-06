@@ -3,7 +3,7 @@
     <a target="_blank" href="https://www.linkedin.com/in/rajesh-srivastava"><img src="https://img.shields.io/badge/style--5eba00.svg?label=LinkedIn&logo=linkedin&style=social"></a>&nbsp;
     <a target="_blank" href="https://www.instagram.com/genieincodebottle/"><img src="https://img.shields.io/badge/51K-C13584?style=flat-square&labelColor=C13584&logo=instagram&logoColor=white&link=https://www.instagram.com/eduardopiresbr/"></a>
     <a target="_blank" href="https://x.com/zero2nn"><img src="https://img.shields.io/twitter/url/https/twitter.com/cloudposse.svg?style=social&label=%20%40zero2nn"></a>
-    <h3><a target="_blank" href="https://github.com/genieincodebottle/generative-ai/blob/main/GenAI_Roadmap.md">👉 GenAI Roadmap - 2025</a></h3>
+    <h3><a target="_blank" href="https://github.com/genieincodebottle/generative-ai/blob/main/GenAI_Roadmap.md">GenAI Roadmap - 2025</a></h3>
 </div>
 
 <div align="center">
@@ -14,23 +14,23 @@
 
 Terraform-based **Infrastructure as Code (IaC)** to deploy a complete AWS backend for a Retrieval-Augmented Generation (RAG) application. It integrates with Google’s free-tier Gemini Pro and Embedding models for AI powered document querying and includes a Streamlit UI with token-based authentication for interacting with the app.
 
-👉 Related Remote MCP Server: [Web Search using SerpAPI](https://github.com/genieincodebottle/rag-app-on-aws/tree/main/mcp_servers)  Remote MCP Server based on Streaming Http Transport protocol for Real Time Web Search. It's located within the `mcp_servers/` directory of this repository.
+Related Remote MCP Server: [Web Search using SerpAPI](https://github.com/genieincodebottle/rag-app-on-aws/tree/main/mcp_servers)  Remote MCP Server based on Streaming Http Transport protocol for Real Time Web Search. It's located within the `mcp_servers/` directory of this repository.
 
-👉 Related UI: [RAG UI (Streamlit Frontend)](https://github.com/genieincodebottle/rag-app-on-aws/tree/main/rag_ui)  A Streamlit-based frontend application designed to interact with the backend infrastructure deployed by this project. It's located within the `rag_ui/` directory of this repository.
+Related UI: [RAG UI (Streamlit Frontend)](https://github.com/genieincodebottle/rag-app-on-aws/tree/main/rag_ui)  A Streamlit-based frontend application designed to interact with the backend infrastructure deployed by this project. It's located within the `rag_ui/` directory of this repository.
 
-💰 Estimated cost: ~$3 (~₹250) to experiment without the AWS Free Tier, primarily for RDS and NAT Gateway if active.
+Estimated cost: ~$3 (~₹250) to experiment without the AWS Free Tier, primarily for RDS and NAT Gateway if active.
 
-🎥 YouTube Video: Walkthrough on setting up the application, building, deploying, and running it end-to-end 👇
+YouTube Video: Walkthrough on setting up the application, building, deploying, and running it end-to-end
 
 [![Watch the video](https://img.youtube.com/vi/x2P4Ee6PYNg/0.jpg)](https://www.youtube.com/watch?v=x2P4Ee6PYNg)
 
 ---
 
-### 🔍 Overview
+### Overview
 
 This repository contains the complete Terraform codebase for provisioning and managing the AWS infrastructure that powers a RAG application. It allows users to upload documents, which are then processed, embedded, and stored for efficient semantic search and AI-driven querying.
 
-📌 Key features include:
+Key features include:
 - **IaC with Terraform**: For consistent and repeatable deployments across environments.
 - **Serverless Compute**: AWS Lambda for backend logic (document processing, querying, uploads, authentication, DB initialization).
 - **Vector Storage**: PostgreSQL RDS with the `pgvector` extension for storing and searching text embeddings.
@@ -42,14 +42,14 @@ This repository contains the complete Terraform codebase for provisioning and ma
 - **Streamlit UI**: Includes a login page, document upload, query interface, and RAG evaluation dashboard.
 ---
 
-### 🏗️ High Level Architecture
+### High Level Architecture
 
 ![architecture](./images/architecture.png)
 
 ---
-### 🌐 Network Flow Walkthrough (Referencing the Architecture)
+### Network Flow Walkthrough (Referencing the Architecture)
 
-#### 🗂️ Document Processing Flow with Network Components:
+#### Document Processing Flow with Network Components:
 
 1. User uploads document → API Gateway → `upload_handler` Lambda
 2. `upload_handler` Lambda → S3 Gateway Endpoint → S3 Bucket
@@ -57,7 +57,7 @@ This repository contains the complete Terraform codebase for provisioning and ma
 4. `document_processor` Lambda → NAT Gateway → Internet Gateway → Gemini API (for embeddings)
 5. `document_processor` Lambda → RDS Security Group → PostgreSQL Database (stores chunks/vectors)
 
-#### 💬 Query Processing Flow with Network Components:
+#### Query Processing Flow with Network Components:
 
 1. User submits query → API Gateway → `query_processor` Lambda (in private subnet)
 2. `query_processor` Lambda → RDS Security Group → PostgreSQL Database (vector search)
@@ -68,19 +68,19 @@ This network architecture ensures that sensitive operations and data are process
 
 ---
 
-### 🔁 GitHub Action Pipeline
+### GitHub Action Pipeline
 
 ![pipeline](./images/pipeline.png)
 
 ---
 
-### 🔁 AWS Infra Provisioning Flow Diagram
+### AWS Infra Provisioning Flow Diagram
 
-🗺️ [Infra Provisioning Lifecycle Flow](https://github.com/genieincodebottle/rag-app-on-aws/blob/main/images/infra_provisioning_sequence.png) (Illustrates the Terraform provisioning sequence)
+[Infra Provisioning Lifecycle Flow](https://github.com/genieincodebottle/rag-app-on-aws/blob/main/images/infra_provisioning_sequence.png) (Illustrates the Terraform provisioning sequence)
 
 ---
 
-### 🗂️ Repository Structure
+### Repository Structure
 
 ```
 .
@@ -126,7 +126,7 @@ This network architecture ensures that sensitive operations and data are process
 ```
 
 ---
-### 🧱 Infrastructure Components
+### Infrastructure Components
 
 The infrastructure is modularized using Terraform modules:
 
@@ -215,31 +215,31 @@ The infrastructure is modularized using Terraform modules:
 
 ---
 
-## ⚙️ Build and Deployment
+## Build and Deployment
 
-### 🛠️ Prerequisites
+### Prerequisites
 
--   ✅ **Python**: `3.11+` (For Streamlit UI).
--   ✅ **AWS Cloud Account**: You’ll need an AWS account to build and deploy this end-to-end application (excluding the streamlit UI, which can runs locally on your system).
+-  **Python**: `3.11+` (For Streamlit UI).
+-  **AWS Cloud Account**: You’ll need an AWS account to build and deploy this end-to-end application (excluding the streamlit UI, which can runs locally on your system).
 
-    👉 [AWS Free Account](https://aws.amazon.com/free/?trk=ac458a05-be8b-40e0-8d01-a185a5530151&sc_channel=ps&ef_id=Cj0KCQjw0LDBBhCnARIsAMpYlAqh7SSXOWwVg9QY_kYOXcrrp4IH9FEnyCVj77ulQ2Bok0aCDHNxpTwaAl6jEALw_wcB:G:s&s_kwcid=AL!4422!3!733868005590!e!!g!!aws%20console!22269308134!170505082450&gad_campaignid=22269308134&gbraid=0AAAAADjHtp9YddvDzIUJZUVVM05tVvxI1&gclid=Cj0KCQjw0LDBBhCnARIsAMpYlAqh7SSXOWwVg9QY_kYOXcrrp4IH9FEnyCVj77ulQ2Bok0aCDHNxpTwaAl6jEALw_wcB&all-free-tier.sort-by=item.additionalFields.SortRank&all-free-tier.sort-order=asc&awsf.Free%20Tier%20Types=*all&awsf.Free%20Tier%20Categories=*all)
+   [AWS Free Account](https://aws.amazon.com/free/?trk=ac458a05-be8b-40e0-8d01-a185a5530151&sc_channel=ps&ef_id=Cj0KCQjw0LDBBhCnARIsAMpYlAqh7SSXOWwVg9QY_kYOXcrrp4IH9FEnyCVj77ulQ2Bok0aCDHNxpTwaAl6jEALw_wcB:G:s&s_kwcid=AL!4422!3!733868005590!e!!g!!aws%20console!22269308134!170505082450&gad_campaignid=22269308134&gbraid=0AAAAADjHtp9YddvDzIUJZUVVM05tVvxI1&gclid=Cj0KCQjw0LDBBhCnARIsAMpYlAqh7SSXOWwVg9QY_kYOXcrrp4IH9FEnyCVj77ulQ2Bok0aCDHNxpTwaAl6jEALw_wcB&all-free-tier.sort-by=item.additionalFields.SortRank&all-free-tier.sort-order=asc&awsf.Free%20Tier%20Types=*all&awsf.Free%20Tier%20Categories=*all)
 
     ![aws-account](./images/aws-account.png)
--   ✅ **GitHub Account**: For forking the repository and using [GitHub](https://github.com/) Actions.
--   ✅ **Git installed on Local Machine**: Use [Git Bash](https://git-scm.com/downloads) or any preferred Git client to manage your repository.
--   ✅ **Google API Key**: For accessing Google's free-tier Gemini Pro and Gemini Embedding models.
+-  **GitHub Account**: For forking the repository and using [GitHub](https://github.com/) Actions.
+-  **Git installed on Local Machine**: Use [Git Bash](https://git-scm.com/downloads) or any preferred Git client to manage your repository.
+-  **Google API Key**: For accessing Google's free-tier Gemini Pro and Gemini Embedding models.
     
-    👉 [Get your API key from Google AI Studio](https://aistudio.google.com/apikey)
+   [Get your API key from Google AI Studio](https://aistudio.google.com/apikey)
 
     ![gemini-api-key](./images/api_key.png)
--   ✅ Free SonarCloud Account for Code Quality Checks (Optional)
+-  Free SonarCloud Account for Code Quality Checks (Optional)
 
     Sign up at [SonarCloud](https://sonarcloud.io/login?return_to=%2Fexplore%2Fprojects) to enable automated quality gates and static analysis for your codebase.
 
     ![sonar-cloud](./images/sonar-cloud.png)
     
 ---
-### 🌍 Environment Management
+### Environment Management
 
 The repository supports multiple deployment environments, typically:
 *   `dev`: For development and testing.
@@ -249,13 +249,13 @@ The repository supports multiple deployment environments, typically:
 Configuration for each environment (Terraform variables, backend configuration) is managed within its respective subfolder under the `environments/` directory (e.g., `environments/dev/`, `environments/staging/`).
 
 ---
-### 🚀 Build and Deployment
+### Build and Deployment
 
-#### 🔐 Set Up GitHub Repo for Build & Deployment
+#### Set Up GitHub Repo for Build & Deployment
 
 1. Fork the Repository
    
-   👉 https://github.com/genieincodebottle/rag-app-on-aws
+  https://github.com/genieincodebottle/rag-app-on-aws
  
    ![github-fork](./images/github-fork.png)
 
@@ -275,7 +275,7 @@ Configuration for each environment (Terraform variables, backend configuration) 
      <img src="./images/terraform.png" alt="security-credentials" width="600" height="400"/>
 
 
-#### 🔐 Setting Up GitHub Secrets
+#### Setting Up GitHub Secrets
 
 1.  **AWS Access Keys**:
     *   Generate an Access Key for either an IAM user with sufficient permissions or the Root user (which has full access) to experiment and create resources defined in Terraform..
@@ -303,7 +303,7 @@ Configuration for each environment (Terraform variables, backend configuration) 
 3.  **Google API Key**:
     *   Although the GEMINI_API_KEY isn’t stored as a GitHub secret for deployment, it’s configured post-deployment via AWS Secrets Manager or as a Terraform variable. Terraform will create a placeholder secret in AWS Secrets Manager, which you must update manually. Go to the AWS Console, search for “Secrets Manager,” and update the secret with your actual Gemini API key (generated from Google’s Gemini AI Studio).
 
-    🔑 Secret name format: <your-project-name>-<your-env>-gemini-api-key
+   Secret name format: <your-project-name>-<your-env>-gemini-api-key
     Example: rag-app-dev-gemini-api-key
 
     ![secret-manager](./images/secret-manager.png)
@@ -313,7 +313,7 @@ Go to your forked GitHub repository → Settings → Secrets and variables → A
 
 ![secrets](./images/secret-keys.png)
 
-#### 🤖 Automated Deployment via GitHub Actions
+#### Automated Deployment via GitHub Actions
 
 The repository includes two primary GitHub Actions workflows:
 
@@ -327,14 +327,14 @@ The repository includes two primary GitHub Actions workflows:
 
 ![github-action](./images/github-action.png)
 
-📤 **Push to trigger CI/CD deployment**:
+**Push to trigger CI/CD deployment**:
    *   **Dev**: `git push origin develop`
    *   **Staging**: `git push origin staging`
    *   **Production**: `git push origin main` 
         * It’s recommended to make changes directly in the main branch of your forked repository to deploy AWS resources.
         * SonarCloud offers free integration with GitHub’s main branch, and the AWS setup is configured similarly to the dev environment for easy experimentation.
 
-🧑‍💻 **Manually trigger deployment from GitHub**:
+**Manually trigger deployment from GitHub**:
    *   Go to your repository on GitHub.
    *   Click on the "Actions" tab.
    *   Select "Terraform AWS Deployment" from the list of workflows.
@@ -342,7 +342,7 @@ The repository includes two primary GitHub Actions workflows:
 
 ---
 
-### 🚀 Running the Web Search MCP Server (Optional - enables live search if RAG results are insufficient)
+### Running the Web Search MCP Server (Optional - enables live search if RAG results are insufficient)
 
 ```bash
 git clone https://github.com/genieincodebottle/rag-app-on-aws.git
@@ -358,7 +358,7 @@ uv venv
 uv pip install -r requirements.txt
 ```
 
-### 🛠️ Configuration
+### Configuration
 
 Create a `.env` file:
 
@@ -367,7 +367,7 @@ SERPAPI_API_KEY=your_serpai_api_key
 ```
 SerpAPI API Key (Free Quota) -> https://serpapi.com/dashboard
 
-### 💡 Usage
+### Usage
 
 Run the following command to start the MCP server on localhost at port 8000 (you can change the port if needed)
 
@@ -377,7 +377,7 @@ python web_search_mcp_server.py --host localhost --port 8000
 
 To expose your local server to the internet (required because AWS Lambda cannot access localhost), choose one of the following methods. Be sure to update the port if you're not using 8000.
 
-✅ Option 1 (Recommended): Use Cloudflare Tunnel (Free without login)
+Option 1 (Recommended): Use Cloudflare Tunnel (Free without login)
 Run the following commands in Windows PowerShell to start a secure tunnel and get a public URL. This URL allows external access to your local MCP server in the RAG UI for testing purposes.
 
   ```bash
@@ -386,16 +386,16 @@ Run the following commands in Windows PowerShell to start a secure tunnel and ge
   cloudflared tunnel --url http://localhost:8000
   ```
 
-✅ Option 2: Use Serveo (Quick SSH Tunnel)
+Option 2: Use Serveo (Quick SSH Tunnel)
 Run this command in Windows PowerShell or Git Bash to open an SSH tunnel and expose your local server for testing purpose:
 
  ```bash
  ssh -R 80:localhost:8000 serveo.net
  ```
 
-### 🔄 Start Streamlit UI to Try Out the RAG App
+### Start Streamlit UI to Try Out the RAG App
 
-👉 UI Readme: https://github.com/genieincodebottle/rag-app-on-aws/rag_ui
+UI Readme: https://github.com/genieincodebottle/rag-app-on-aws/rag_ui
 
 Once the AWS resources are deployed via the GitHub Actions pipeline, follow these steps to launch the UI and test the application locally.
 
@@ -448,7 +448,7 @@ Once the AWS resources are deployed via the GitHub Actions pipeline, follow thes
 
 ---
 
-### 🔄 CI/CD Pipeline Highlights (`deploy.yml`)
+### CI/CD Pipeline Highlights (`deploy.yml`)
 
 The `deploy.yml` workflow automates the deployment process with the following key steps:
 
@@ -487,7 +487,7 @@ The `deploy.yml` workflow automates the deployment process with the following ke
 ---
 
 
-### 🧰 Utilities
+### Utilities
 
 The `/scripts/` folder contains helpful shell scripts:
 
@@ -497,7 +497,7 @@ The `/scripts/` folder contains helpful shell scripts:
 
 ---
 
-### 🧹 Uninstallation
+### Uninstallation
 
 To remove all AWS resources created by this project for a specific environment:
 
@@ -534,7 +534,7 @@ To remove all AWS resources created by this project for a specific environment:
     The script has built-in confirmations but destructive actions are significant.
 ---
 
-### 🤝 Contributing
+### Contributing
 
 Contributions are welcome! Please follow these steps:
 1.  Fork the repository.
