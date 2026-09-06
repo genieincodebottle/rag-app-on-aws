@@ -43,7 +43,23 @@ MAX_OUTPUT_TOKENS = int(os.environ.get('MAX_OUTPUT_TOKENS'))
 TOP_K = int(os.environ.get('TOP_K'))
 TOP_P = float(os.environ.get('TOP_P'))
 SIMILARITY_THRESHOLD = float(os.environ.get('SIMILARITY_THRESHOLD'))
-GEMINI_EMBEDDING_MODEL = "text-embedding-004"
+
+# text-embedding-004 is RETIRED - it returns 404 on every call, which meant
+# no document could be ingested at all. gemini-embedding-001 replaces it.
+#
+# The default output is 3072-dimensional, but the `chunks.embedding` column is
+# VECTOR(768) and is indexed with ivfflat, so the dimension is requested
+# explicitly. Changing it here means an ALTER on that column and a full
+# re-embed of every existing chunk.
+#
+# Note: only the 3072-d output is unit-normalised; at 768 the norm is about
+# 0.59. That is fine here because the search uses cosine distance (`<=>` with
+# vector_cosine_ops), which normalises internally - but it would silently skew
+# results if anyone switched to inner product (`<#>`) or L2 (`<->`).
+GEMINI_EMBEDDING_MODEL = os.environ.get(
+    'GEMINI_EMBEDDING_MODEL', 'gemini-embedding-001'
+)
+EMBEDDING_DIMENSIONS = int(os.environ.get('EMBEDDING_DIMENSIONS', '768'))
 
 
 def get_gemini_api_key():
@@ -87,13 +103,16 @@ def embed_query(text: str) -> List[float]:
         result = client.models.embed_content(
             model=GEMINI_EMBEDDING_MODEL,
             contents=text,
-            config=types.EmbedContentConfig(task_type="SEMANTIC_SIMILARITY")
+            config=types.EmbedContentConfig(
+                task_type="SEMANTIC_SIMILARITY",
+                output_dimensionality=EMBEDDING_DIMENSIONS,
+            )
         )
         # Access the first embedding object and return its .values
         return list(result.embeddings[0].values)
     except Exception as e:
         logger.error(f"Error creating embedding: {str(e)}")
-        return [0.0] * 768
+        return [0.0] * EMBEDDING_DIMENSIONS
 
 
 def get_postgres_credentials():

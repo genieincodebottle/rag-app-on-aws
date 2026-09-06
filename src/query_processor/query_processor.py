@@ -31,13 +31,22 @@ METADATA_TABLE = os.environ.get('METADATA_TABLE')
 STAGE = os.environ.get('STAGE')
 DB_SECRET_ARN = os.environ.get('DB_SECRET_ARN')
 GEMINI_SECRET_ARN = os.environ.get('GEMINI_SECRET_ARN')
-GEMINI_EMBEDDING_MODEL = os.environ.get('GEMINI_EMBEDDING_MODEL')
+# A query has to be embedded by the SAME model at the SAME dimensionality as
+# the stored chunks, or the vectors are not comparable. With no default here
+# an unset env var made this None, and without an explicit dimension the query
+# came back 3072-d against a VECTOR(768) index. Both defaults mirror
+# document_processor.py deliberately - change them together or not at all.
+GEMINI_EMBEDDING_MODEL = os.environ.get(
+    'GEMINI_EMBEDDING_MODEL', 'gemini-embedding-001'
+)
+EMBEDDING_DIMENSIONS = int(os.environ.get('EMBEDDING_DIMENSIONS', '768'))
 TEMPERATURE = float(os.environ.get('TEMPERATURE'))
 MAX_OUTPUT_TOKENS = int(os.environ.get('MAX_OUTPUT_TOKENS'))
 TOP_K = int(os.environ.get('TOP_K'))
 TOP_P = float(os.environ.get('TOP_P'))
 ENABLE_EVALUATION = os.environ.get('ENABLE_EVALUATION', 'true').lower() == 'true'
-GEMINI_MODEL = "gemini-2.0-flash"
+# gemini-2.0-* is retired. This is a rolling alias, so it cannot rot again.
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-latest")
 
 # MCP Configuration
 MCP_TIMEOUT = int(os.environ.get('MCP_TIMEOUT', '60'))
@@ -268,12 +277,15 @@ def embed_query(text: str) -> List[float]:
         result = client.models.embed_content(
             model=GEMINI_EMBEDDING_MODEL,
             contents=text,
-            config=types.EmbedContentConfig(task_type="SEMANTIC_SIMILARITY")
+            config=types.EmbedContentConfig(
+                task_type="SEMANTIC_SIMILARITY",
+                output_dimensionality=EMBEDDING_DIMENSIONS,
+            )
         )
         return list(result.embeddings[0].values)
     except Exception as e:
         logger.error(f"Error generating embedding: {str(e)}")
-        return [0.0] * 768
+        return [0.0] * EMBEDDING_DIMENSIONS
 
 # Function to fetch Postgres credentials from AWS Secrets Manager
 def get_postgres_credentials():

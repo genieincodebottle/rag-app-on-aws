@@ -892,7 +892,7 @@ def render_sidebar():
     if st.session_state.get("authenticated", False):
         selected_model = st.selectbox(
             "Select Model",
-            options=["gemini-2.0-flash", "gemini-2.0-flash-lite", "gemini-1.5-pro", "gemini-2.5-flash-preview-04-17"],
+            options=["gemini-flash-latest", "gemini-flash-lite-latest", "gemini-pro-latest", "gemini-2.5-flash"],
             index=0,
             help="Select the model to use"
         )

@@ -17,7 +17,7 @@ os.environ["TEMPERATURE"] = "0.2"
 os.environ["MAX_OUTPUT_TOKENS"] = "1024"
 os.environ["TOP_K"] = "40"
 os.environ["TOP_P"] = "0.8"
-MODEL_NAME = "gemini-2.0-flash"
+MODEL_NAME = "gemini-flash-latest"
 
 # Now import the module under test - mocks are already in place globally from conftest
 from query_processor.query_processor import (
@@ -237,7 +237,10 @@ class TestQueryProcessor(unittest.TestCase):
         # Verify results
         self.assertEqual(response["statusCode"], 200)
         response_body = json.loads(response["body"])
-        self.assertEqual(response_body["message"], "Query processor is healthy")
+        self.assertEqual(
+            response_body["message"],
+            "Enhanced query processor with stateless agentic RAG is healthy",
+        )
         self.assertEqual(response_body["stage"], "test")
 
     def test_handler_missing_query(self):
@@ -246,7 +249,7 @@ class TestQueryProcessor(unittest.TestCase):
         event = {
             "body": json.dumps({
                 "user_id": "user-1",
-                "model_name": "gemini-2.0-flash"
+                "model_name": "gemini-flash-latest"
             })
         }
 
@@ -288,7 +291,7 @@ class TestQueryProcessor(unittest.TestCase):
             "body": json.dumps({
                 "query": "What is RAG?",
                 "user_id": "user-1",
-                "model_name": "gemini-2.0-flash"
+                "model_name": "gemini-flash-latest"
             })
         }
 
@@ -300,13 +303,19 @@ class TestQueryProcessor(unittest.TestCase):
         response_body = json.loads(response["body"])
         self.assertEqual(response_body["query"], "What is RAG?")
         self.assertEqual(response_body["response"], "RAG stands for Retrieval-Augmented Generation. It combines retrieval and generation techniques.")
-        self.assertEqual(len(response_body["results"]), 1)
-        self.assertEqual(response_body["count"], 1)
+        # Retrieval results moved under `traditional_rag` when web search was
+        # added alongside them.
+        self.assertEqual(len(response_body["traditional_rag"]["results"]), 1)
+        self.assertEqual(response_body["traditional_rag"]["count"], 1)
         
         # Verify function calls
         mock_embed.assert_called_once_with("What is RAG?")
         mock_search.assert_called_once_with([0.1, 0.2, 0.3], "user-1")
-        mock_generate.assert_called_once_with("gemini-2.0-flash", "What is RAG?", mock_chunks)
+        # generate_response gained a fourth argument when web search was added;
+        # with no web result it is None.
+        mock_generate.assert_called_once_with(
+            "gemini-flash-latest", "What is RAG?", mock_chunks, None
+        )
 
     @patch("query_processor.query_processor.embed_query")
     def test_handler_error_handling(self, mock_embed):
@@ -319,7 +328,7 @@ class TestQueryProcessor(unittest.TestCase):
             "body": json.dumps({
                 "query": "What is RAG?",
                 "user_id": "user-1",
-                "model_name": "gemini-2.0-flash"
+                "model_name": "gemini-flash-latest"
             })
         }
 
