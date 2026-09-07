@@ -1224,7 +1224,7 @@ if [[ "$vpc_id" != "None" && -n "$vpc_id" ]]; then
             "Failed to delete NAT gateway" \
             "Successfully delete NAT gateway " \
             "true"
-        # NAT Gateway deletion takes time — wait is advised in production
+        # NAT Gateway deletion takes time - wait is advised in production
         for alloc_id in $eip_alloc_ids; do
             echo "Releasing Elastic IP Allocation ID: $alloc_id"
             run_command "aws ec2 release-address --allocation-id $alloc_id --region $AWS_REGION" \
@@ -1321,7 +1321,7 @@ if [[ "$vpc_id" != "None" && -n "$vpc_id" ]]; then
     echo "Final VPC Deletion..."
     aws ec2 delete-vpc --vpc-id "$vpc_id" --region "$AWS_REGION" \
         && echo -e "${GREEN}VPC deleted: $vpc_id${NC}" \
-        || echo -e "${YELLOW}VPC deletion failed — remaining dependencies likely exist.${NC}"
+        || echo -e "${YELLOW}VPC deletion failed - remaining dependencies likely exist.${NC}"
 else
     echo "No VPC found or already deleted."
 fi

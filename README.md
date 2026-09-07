@@ -268,9 +268,9 @@ Configuration for each environment (Terraform variables, backend configuration) 
 
    Update the following fields in environments/<stage>/terraform.tfvars:
 
-   * `project_name = "<your-project-name>"` – to avoid global resource name conflicts (e.g., S3 buckets).
-   * `github_repo = "<your-github-username>/rag-app-on-aws"` – for CI/CD pipeline setup.
-   * `alert_email = "<your-email>"` – for receiving deployment alerts.
+   * `project_name = "<your-project-name>"` - to avoid global resource name conflicts (e.g., S3 buckets).
+   * `github_repo = "<your-github-username>/rag-app-on-aws"` - for CI/CD pipeline setup.
+   * `alert_email = "<your-email>"` - for receiving deployment alerts.
 
      <img src="./images/terraform.png" alt="security-credentials" width="600" height="400"/>
 
