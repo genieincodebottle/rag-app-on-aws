@@ -1,0 +1,153 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ReadEverythingForPlanning",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:Describe*", "rds:Describe*", "rds:ListTagsForResource", "lambda:Get*", "lambda:List*",
+        "apigateway:GET", "cognito-idp:Describe*", "cognito-idp:List*", "cognito-idp:GetUserPoolMfaConfig",
+        "logs:Describe*", "logs:ListTagsForResource", "cloudwatch:Describe*", "cloudwatch:GetDashboard",
+        "cloudwatch:ListTagsForResource", "sns:Get*", "sns:List*", "sqs:GetQueueAttributes", "sqs:ListQueueTags",
+        "kms:Describe*", "kms:Get*", "kms:List*", "secretsmanager:DescribeSecret", "secretsmanager:GetResourcePolicy",
+        "wafv2:Get*", "wafv2:List*", "bedrock:GetGuardrail", "bedrock:ListGuardrails", "bedrock:ListTagsForResource",
+        "budgets:ViewBudget", "budgets:ListTagsForResource", "iam:Get*", "iam:List*", "s3:Get*", "s3:List*",
+        "sts:GetCallerIdentity"
+      ],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ManageOwnRolesOnly",
+      "Effect": "Allow",
+      "Action": [
+        "iam:CreateRole", "iam:DeleteRole", "iam:UpdateRole", "iam:UpdateAssumeRolePolicy", "iam:TagRole", "iam:UntagRole",
+        "iam:PutRolePolicy", "iam:DeleteRolePolicy", "iam:AttachRolePolicy", "iam:DetachRolePolicy"
+      ],
+      "Resource": "arn:aws:iam::${account_id}:role/${project}-${environment}-*"
+    },
+    {
+      "Sid": "PassOwnRolesToServices",
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::${account_id}:role/${project}-${environment}-*",
+      "Condition": { "StringEquals": { "iam:PassedToService": ["lambda.amazonaws.com", "vpc-flow-logs.amazonaws.com", "monitoring.rds.amazonaws.com"] } }
+    },
+    {
+      "Sid": "ServiceLinkedRoles",
+      "Effect": "Allow",
+      "Action": "iam:CreateServiceLinkedRole",
+      "Resource": "*",
+      "Condition": { "StringEquals": { "iam:AWSServiceName": ["rds.amazonaws.com", "ops.apigateway.amazonaws.com"] } }
+    },
+    {
+      "Sid": "Lambda",
+      "Effect": "Allow",
+      "Action": "lambda:*",
+      "Resource": [
+        "arn:aws:lambda:${region}:${account_id}:function:${project}-${environment}-*",
+        "arn:aws:lambda:${region}:${account_id}:event-source-mapping:*"
+      ]
+    },
+    {
+      "Sid": "LambdaEventSourceMappings",
+      "Effect": "Allow",
+      "Action": ["lambda:CreateEventSourceMapping", "lambda:GetEventSourceMapping", "lambda:ListEventSourceMappings"],
+      "Resource": "*"
+    },
+    {
+      "Sid": "ReadArtifacts",
+      "Effect": "Allow",
+      "Action": ["s3:GetObject", "s3:GetObjectVersion", "s3:PutObject"],
+      "Resource": "${artifact_bucket}/lambda/*"
+    },
+    {
+      "Sid": "DocumentsBucket",
+      "Effect": "Allow",
+      "Action": "s3:*",
+      "Resource": [
+        "arn:aws:s3:::${project}-${environment}-documents-${account_id}",
+        "arn:aws:s3:::${project}-${environment}-documents-${account_id}/*"
+      ]
+    },
+    {
+      "Sid": "Queues",
+      "Effect": "Allow",
+      "Action": "sqs:*",
+      "Resource": "arn:aws:sqs:${region}:${account_id}:${project}-${environment}-*"
+    },
+    {
+      "Sid": "Database",
+      "Effect": "Allow",
+      "Action": "rds:*",
+      "Resource": [
+        "arn:aws:rds:${region}:${account_id}:cluster:${project}-${environment}",
+        "arn:aws:rds:${region}:${account_id}:cluster:${project}-${environment}*",
+        "arn:aws:rds:${region}:${account_id}:db:${project}-${environment}-*",
+        "arn:aws:rds:${region}:${account_id}:subgrp:${project}-${environment}",
+        "arn:aws:rds:${region}:${account_id}:cluster-pg:${project}-${environment}-*",
+        "arn:aws:rds:${region}:${account_id}:cluster-snapshot:${project}-${environment}-*"
+      ]
+    },
+    {
+      "Sid": "DatabaseSecrets",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:CreateSecret", "secretsmanager:DeleteSecret", "secretsmanager:UpdateSecret",
+        "secretsmanager:TagResource", "secretsmanager:UntagResource", "secretsmanager:PutResourcePolicy"
+      ],
+      "Resource": "arn:aws:secretsmanager:${region}:${account_id}:secret:${project}-${environment}/*"
+    },
+    {
+      "Sid": "RdsManagedMasterSecret",
+      "Effect": "Allow",
+      "Action": ["secretsmanager:CreateSecret", "secretsmanager:TagResource", "secretsmanager:RotateSecret"],
+      "Resource": "arn:aws:secretsmanager:${region}:${account_id}:secret:rds!*"
+    },
+    {
+      "Sid": "Logs",
+      "Effect": "Allow",
+      "Action": "logs:*",
+      "Resource": [
+        "arn:aws:logs:${region}:${account_id}:log-group:/aws/lambda/${project}-${environment}-*",
+        "arn:aws:logs:${region}:${account_id}:log-group:/aws/apigateway/${project}-${environment}*",
+        "arn:aws:logs:${region}:${account_id}:log-group:/vpc/${project}-${environment}/*",
+        "arn:aws:logs:${region}:${account_id}:log-group:aws-waf-logs-${project}-${environment}*"
+      ]
+    },
+    {
+      "Sid": "ServicesWithoutNamePatterns",
+      "Effect": "Allow",
+      "Action": [
+        "ec2:CreateVpc", "ec2:DeleteVpc", "ec2:ModifyVpcAttribute", "ec2:CreateSubnet", "ec2:DeleteSubnet",
+        "ec2:CreateSecurityGroup", "ec2:DeleteSecurityGroup", "ec2:RevokeSecurityGroupIngress",
+        "ec2:RevokeSecurityGroupEgress", "ec2:AuthorizeSecurityGroupEgress", "ec2:CreateTags", "ec2:DeleteTags",
+        "ec2:CreateFlowLogs", "ec2:DeleteFlowLogs",
+        "apigateway:POST", "apigateway:PUT", "apigateway:PATCH", "apigateway:DELETE",
+        "cognito-idp:CreateUserPool", "cognito-idp:DeleteUserPool", "cognito-idp:UpdateUserPool",
+        "cognito-idp:CreateUserPoolClient", "cognito-idp:UpdateUserPoolClient", "cognito-idp:DeleteUserPoolClient",
+        "cognito-idp:CreateGroup", "cognito-idp:UpdateGroup", "cognito-idp:DeleteGroup",
+        "cognito-idp:SetUserPoolMfaConfig", "cognito-idp:TagResource", "cognito-idp:UntagResource",
+        "cloudwatch:PutMetricAlarm", "cloudwatch:DeleteAlarms", "cloudwatch:PutDashboard",
+        "cloudwatch:DeleteDashboards", "cloudwatch:TagResource",
+        "sns:CreateTopic", "sns:DeleteTopic", "sns:SetTopicAttributes", "sns:Subscribe", "sns:Unsubscribe",
+        "sns:TagResource",
+        "kms:CreateKey", "kms:CreateAlias", "kms:DeleteAlias", "kms:UpdateAlias", "kms:EnableKeyRotation",
+        "kms:PutKeyPolicy", "kms:TagResource", "kms:ScheduleKeyDeletion", "kms:CreateGrant",
+        "kms:Decrypt", "kms:Encrypt", "kms:GenerateDataKey",
+        "wafv2:CreateWebACL", "wafv2:UpdateWebACL", "wafv2:DeleteWebACL", "wafv2:AssociateWebACL",
+        "wafv2:DisassociateWebACL", "wafv2:TagResource", "wafv2:PutLoggingConfiguration", "wafv2:DeleteLoggingConfiguration",
+        "bedrock:CreateGuardrail", "bedrock:UpdateGuardrail", "bedrock:DeleteGuardrail",
+        "bedrock:CreateGuardrailVersion", "bedrock:TagResource",
+        "budgets:ModifyBudget", "budgets:TagResource"
+      ],
+      "Resource": "*",
+      "Condition": { "StringEquals": { "aws:RequestedRegion": ["${region}", "us-east-1"] } }
+    },
+    {
+      "Sid": "NeverCreateLongLivedCredentials",
+      "Effect": "Deny",
+      "Action": ["iam:CreateUser", "iam:CreateAccessKey", "iam:CreateLoginProfile", "iam:AttachUserPolicy", "iam:PutUserPolicy"],
+      "Resource": "*"
+    }
+  ]
+}

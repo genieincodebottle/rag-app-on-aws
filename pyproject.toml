@@ -1,26 +1,123 @@
 [build-system]
-requires = ["setuptools>=42", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["hatchling>=1.27"]
+build-backend = "hatchling.build"
 
 [project]
-name = "rag-app-on-aws"
-version = "0.1.0"
-description = "RAG Application on AWS"
+name = "ragplatform"
+version = "2.0.0"
+description = "Multi-tenant retrieval-augmented generation platform on AWS (Bedrock, Aurora PostgreSQL pgvector, Lambda)"
 readme = "README.md"
-requires-python = ">=3.9"
-license = {text = "MIT"}
+requires-python = ">=3.12"
+license = { text = "MIT" }
+# Runtime dependencies shipped in the Lambda bundles. Everything here must have
+# manylinux aarch64 wheels, because the functions run on arm64.
 dependencies = [
-    "boto3>=1.38.6",
-    "psycopg2-binary>=2.9.10",
+    "aws-lambda-powertools[tracer]>=3.37.0",
+    "boto3>=1.40.0",
+    "fastapi>=0.115.0",
+    "httpx>=0.28.0",
+    "mangum>=0.22.0",
+    "pydantic>=2.11.0",
+    "pydantic-settings>=2.10.0",
+    "pypdf>=6.0.0",
+    "python-docx>=1.2.0",
 ]
 
 [project.optional-dependencies]
-dev = [
-    "pytest>=8.3.5",
-    "pytest-cov>=6.1.1",
-    "moto>=5.1.4",
+# Local development only. None of these are packaged into Lambda.
+local = [
+    "google-genai>=1.30.0",
+    "psycopg[binary,pool]>=3.2.0",
+    "pyjwt>=2.10.0",
+    "uvicorn>=0.34.0",
+]
+ui = [
+    "requests>=2.32.0",
+    "streamlit>=1.50.0",
 ]
 
+[dependency-groups]
+dev = [
+    "locust>=2.37.0",
+    "mcp>=2.3.0,<3",
+    "moto[s3,sqs]>=5.1.0",
+    "mypy>=1.17.0",
+    "pip-audit>=2.9.0",
+    "pytest>=8.4.0",
+    "pytest-cov>=6.2.0",
+    "ruff>=0.12.0",
+]
+
+[project.scripts]
+ragplatform = "ragplatform.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/ragplatform"]
+
+[tool.hatch.build.targets.wheel.force-include]
+"src/ragplatform/store/migrations" = "ragplatform/store/migrations"
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests", "eval"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W",   # pycodestyle, pyflakes
+    "I",             # import order
+    "B",             # bugbear
+    "UP",            # pyupgrade
+    "S",             # bandit security rules
+    "BLE",           # no blind except
+    "RUF",
+    "SIM",
+    "PT",
+]
+ignore = [
+    "S101",   # assert is fine in tests (scoped below)
+]
+
+[tool.ruff.lint.per-file-ignores]
+# The store builds SQL from constant fragments (column lists, WHERE clauses
+# chosen by code paths) and binds every value as a parameter. Identifiers that
+# cannot be bound (role names, vector width) are validated before use.
+"src/ragplatform/store/*.py" = ["S608"]
+# Prompt text is kept as written so it reads the way the model receives it.
+"src/ragplatform/generation/prompts.py" = ["E501"]
+"tests/**" = ["S101", "S105", "S106", "S108", "S311", "E501"]
+"eval/**" = ["S101", "S311", "E501"]
+"ui/**" = ["S113"]
+# Build tooling runs fixed commands assembled in the script itself.
+"scripts/**" = ["S603", "E501"]
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+mypy_path = "src"
+packages = ["ragplatform"]
+plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["boto3.*", "botocore.*", "docx.*", "mangum.*", "google.*", "psycopg.*", "jwt.*"]
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
-testpaths = ["src/tests"]
-pythonpath = [".", "src"]
+testpaths = ["tests"]
+pythonpath = ["."]
+addopts = "-ra --strict-markers"
+markers = [
+    "integration: needs PostgreSQL with pgvector (docker compose up -d db)",
+    "live: calls a real model provider and costs money or free-tier quota",
+]
+filterwarnings = [
+    "error::pytest.PytestUnraisableExceptionWarning",
+]
+
+[tool.coverage.run]
+source = ["ragplatform"]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true

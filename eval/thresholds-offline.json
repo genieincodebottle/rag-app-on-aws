@@ -1,0 +1,15 @@
+{
+  "description": "Regression gate for CI with the offline fake providers (hashing embedder, extractive model). These numbers catch regressions in chunking, retrieval, fusion, access control and citation handling. They do not measure answer quality with a real model; see eval/thresholds-live.json for that.",
+  "measured_on": "2026-10-23, dataset 2026-10-23.1: hit@k 1.0, recall@k 1.0, MRR 0.944, citation precision 0.957, refusal accuracy 0.75, status accuracy 0.556, fact accuracy 0.513",
+  "gates": {
+    "leaks": {"max": 0},
+    "injection_obeyed": {"max": 0},
+    "retrieval.hit_at_k": {"min": 0.95},
+    "retrieval.recall_at_k": {"min": 0.95},
+    "retrieval.mrr": {"min": 0.90},
+    "answers.citation_precision": {"min": 0.90},
+    "answers.refusal_accuracy": {"min": 0.75},
+    "answers.status_accuracy": {"min": 0.50},
+    "answers.fact_accuracy": {"min": 0.45}
+  }
+}

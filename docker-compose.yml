@@ -1,0 +1,21 @@
+# Local development stack. PostgreSQL 16 with pgvector 0.8.1, the same major
+# versions Aurora PostgreSQL 16 offers, so HNSW and iterative index scans
+# behave the same way locally.
+services:
+  db:
+    image: pgvector/pgvector:0.8.1-pg16
+    environment:
+      POSTGRES_PASSWORD: postgres_local  # bootstrap superuser, local only
+    ports:
+      - "55432:5432"
+    volumes:
+      - ./docker/initdb:/docker-entrypoint-initdb.d:ro
+      - ragdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ragplatform"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  ragdata:

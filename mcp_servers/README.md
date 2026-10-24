@@ -1,66 +1,49 @@
-## Remote MCP Server based on Streaming Http Transport protocol for Real Time Web Search
+# Web search MCP server
 
-Connect your LLM powered app with real-time Google search results using this streamable Http Transport based Model Context Protocol (MCP) Server.
+An optional Model Context Protocol server that gives the platform's agentic mode a `web_search` tool, backed by SerpApi. It uses the streamable HTTP transport in stateless JSON mode, so any instance can serve any call and responses are single JSON bodies.
 
-Built with FastMCP and SerpApi - perfect for RAG pipelines, agent tools or experimental AI workflows.
+The tool returns structured results:
 
-### Features
+```json
+{"query": "lambda timeout limit", "results": [{"title": "...", "link": "https://...", "snippet": "..."}]}
+```
 
-- Real-time Google search via SerpApi
-
-- Answer box, knowledge graph & related questions parsing
-
-- Fast stateless HTTP streamable transport with JSON responses MCP Server based on FastMCP
-
-- Built-in health check endpoint
-
-### Installation
+## Run
 
 ```bash
-git clone https://github.com/genieincodebottle/rag-app-on-aws.git
-
-cd rag-app-on-aws/mcp_server
-
-pip install uv # If uv doesn't exist in your system
-
-uv venv
-
-.venv\Scripts\activate   # Linux: source .venv/bin/activate
-
-uv pip install -r requirements.txt
+cd mcp_servers
+uv venv && uv pip install -r requirements.txt     # or: pip install -r requirements.txt
+cp .env.example .env                             # set SERPAPI_API_KEY and MCP_API_KEY
+python web_search_mcp_server.py --host 127.0.0.1 --port 8765
 ```
 
-### Configuration
+Requires the MCP Python SDK 2.x (the server class is `MCPServer`; in 1.x it was `FastMCP`).
 
-Create a `.env` file:
+| Setting | Purpose |
+|---|---|
+| `SERPAPI_API_KEY` | SerpApi key, from https://serpapi.com/dashboard |
+| `MCP_API_KEY` | shared secret; callers send `Authorization: Bearer <key>`. Required unless you pass `--allow-unauthenticated` with `--host 127.0.0.1` for a local experiment |
 
-```env
-SERPAPI_API_KEY=your_serpai_api_key
+`GET /health` answers without a key.
+
+## Connect the platform
+
+In the platform's `.env`:
+
 ```
-SerpAPI API Key (Free Quota) -> https://serpapi.com/dashboard
-
-### Usage
-
-Run the following command to start the MCP server on localhost at port 8000 (you can change the port if needed)
-
-```bash
-python web_search_mcp_server.py --host localhost --port 8000
+RAG_WEB_SEARCH_URL=http://localhost:8765/mcp
+RAG_WEB_SEARCH_API_KEY=<the same MCP_API_KEY>
 ```
 
-To expose your local server to the internet (required because AWS Lambda cannot access localhost), choose one of the following methods. Be sure to update the port if you're not using 8000.
+and enable web search for a tenant: `uv run ragplatform tenant acme "Acme Corp" --agentic --web`. The agent calls the tool only in agentic mode and only when document search found nothing. Results enter the prompt flagged as external, untrusted text.
 
-Option 1 (Recommended): Use Cloudflare Tunnel (Free without login)
-Run the following commands in Windows PowerShell to start a secure tunnel and get a public URL. This URL allows external access to your local MCP server in the RAG UI for testing purposes.
+Deployed environments accept only an `https://` URL, so host the server behind TLS (a container service, or a tunnel for a short test). The URL is server configuration; it is never taken from a request.
 
-  ```bash
-  iwr -useb https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe -OutFile cloudflared.exe
-  
-  cloudflared tunnel --url http://localhost:8000
-  ```
+## Safety
 
-Option 2: Use Serveo (Quick SSH Tunnel)
-Run this command in Windows PowerShell or Git Bash to open an SSH tunnel and expose your local server for testing purpose:
+- SerpApi is called with `safe=active`, a 10 s timeout, and the key never logged (it is in the query string).
+- Only `https://` result links are returned; snippets are trimmed to 600 characters and at most 10 results.
+- Request bodies over 64 KB are rejected.
+- Tool failures are returned as MCP tool errors (`isError: true`), which the platform's client raises rather than treating as "no results".
 
- ```bash
- ssh -R 80:localhost:8000 serveo.net
- ```
+`tests/unit/test_mcp_server.py` starts this server on a local port with SerpApi mocked and drives it with the platform's client.

@@ -1,0 +1,147 @@
+# Continuous integration. Runs on every pull request and every push to main or
+# develop. Needs no AWS credentials: nothing here touches an AWS account.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  UV_FROZEN: "1" # fail if uv.lock is out of date instead of silently re-resolving
+
+jobs:
+  lint:
+    name: lint and types
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          python-version: "3.13"
+      - run: uv sync --all-extras
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run mypy
+
+  test:
+    name: tests and evaluation gate
+    runs-on: ubuntu-24.04
+    services:
+      db:
+        image: pgvector/pgvector:0.8.1-pg16
+        env:
+          POSTGRES_PASSWORD: postgres_ci
+        ports: ["55432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 2s
+          --health-timeout 3s --health-retries 30
+    env:
+      RAG_REQUIRE_DB: "1" # a missing database fails the job instead of skipping tests
+      AWS_DEFAULT_REGION: us-east-1
+      AWS_ACCESS_KEY_ID: testing # moto and botocore stubs only
+      AWS_SECRET_ACCESS_KEY: testing
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          python-version: "3.13"
+      - run: uv sync --all-extras
+      - name: Create roles and databases
+        env:
+          PGPASSWORD: postgres_ci
+        run: psql -h localhost -p 55432 -U postgres -v ON_ERROR_STOP=1 -f docker/initdb/01-roles.sql
+      - name: Tests with coverage
+        run: uv run pytest --cov --cov-report=xml --cov-report=term
+      - name: Offline evaluation gate
+        run: uv run python -m eval.run_eval --label ci-offline --output build/eval-ci-offline.json --check eval/thresholds-offline.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: test-reports
+          path: |
+            coverage.xml
+            build/eval-ci-offline.json
+          retention-days: 14
+
+  security:
+    name: dependency and secret scanning
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # gitleaks scans history
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          python-version: "3.13"
+      - name: Audit runtime and dev dependencies for known vulnerabilities
+        run: |
+          uv export --all-extras --format requirements-txt --no-hashes --output-file build-requirements.txt
+          uvx pip-audit --requirement build-requirements.txt --strict --progress-spinner off
+      - uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  infrastructure:
+    name: terraform and workflow checks
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.17.0
+      - run: terraform fmt -check -recursive infra/terraform
+      - name: Validate
+        run: |
+          for root in platform bootstrap; do
+            terraform -chdir=infra/terraform/$root init -backend=false -input=false
+            terraform -chdir=infra/terraform/$root validate
+          done
+      - uses: bridgecrewio/checkov-action@99bb2caf247dfd9f03cf984373bc6043d4e32ebf # v12.1347.0
+        with:
+          directory: infra/terraform
+          framework: terraform
+          quiet: true
+      - name: Lint GitHub workflows
+        run: |
+          bash <(curl -sSfL https://raw.githubusercontent.com/rhysd/actionlint/914e7df21a07ef503a81201c76d2b11c789d3fca/scripts/download-actionlint.bash) 1.7.12
+          ./actionlint -color
+
+  build:
+    name: lambda bundle
+    runs-on: ubuntu-24.04
+    needs: [lint, test, security, infrastructure]
+    permissions:
+      contents: read
+      id-token: write # build provenance attestation
+      attestations: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          python-version: "3.13"
+      - run: uv sync
+      - name: Build bundle
+        run: uv run python scripts/build_lambda.py | tee build/build.log
+      - name: Software bill of materials
+        run: uvx --from cyclonedx-bom cyclonedx-py requirements build/requirements.txt --output-format JSON --output-file build/sbom.cdx.json
+      - name: Attest build provenance
+        if: github.event_name == 'push'
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: build/ragplatform.zip
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: lambda-bundle-${{ github.sha }}
+          path: |
+            build/ragplatform.zip
+            build/sbom.cdx.json
+            build/build.log
+          retention-days: 30

@@ -1,621 +1,220 @@
-name: Terraform AWS Deployment
+# Deploy to one environment.
+#
+#   push to main      -> dev
+#   manual dispatch   -> dev, test or prod (prod waits for the reviewers set on
+#                        the "prod" GitHub environment)
+#
+# AWS access is through GitHub OIDC only. Two roles per environment come from
+# infra/terraform/bootstrap:
+#   <project>-<env>-plan    read-only, trusted from GitHub environment "<env>-plan"
+#   <project>-<env>-deploy  can change the stack, trusted from GitHub environment "<env>"
+#
+# Repository configuration (Settings > Secrets and variables > Actions > Variables):
+#   AWS_ACCOUNT_ID, AWS_REGION, TF_STATE_BUCKET, ARTIFACT_BUCKET
+# Optional secrets on the dev and test environments, for the authenticated smoke
+# test (prod only calls /v1/health, because it disables password sign-in):
+#   SMOKE_USERNAME, SMOKE_PASSWORD (a Cognito user in a smoke-test tenant)
+name: deploy
 
 on:
   push:
-    branches:
-      - main
-      - develop
-      - staging
-  pull_request:
-    branches: [main, staging]
+    branches: [main]
   workflow_dispatch:
     inputs:
       environment:
-        description: 'Environment to deploy to'
-        required: true
-        default: 'dev'
+        description: Environment to deploy
         type: choice
-        options:
-          - dev
-          - staging
-          - prod
-      reset_db_password:
-        description: 'Reset database password (use with caution)'
-        required: false
-        default: false
-        type: boolean
-      bastion_allowed_cidr:
-        description: 'CIDR block allowed to access bastion (e.g. office IP)'
-        required: false
-        default: '0.0.0.0/0'
-        type: string
-      wait_for_db:
-        description: 'Wait for database to be available before initialization'
-        required: false
-        default: true
-        type: boolean
-
-env:
-  TERRAFORM_VERSION: 1.5.7
-  PYTHON_VERSION: '3.11'
+        options: [dev, test, prod]
+        default: dev
 
 permissions:
-  id-token: write
   contents: read
 
+concurrency:
+  # One deploy per environment at a time; a second one waits instead of racing
+  # on the Terraform state (which is also locked).
+  group: deploy-${{ inputs.environment || 'dev' }}
+  cancel-in-progress: false
+
+env:
+  ENVIRONMENT: ${{ inputs.environment || 'dev' }}
+  TF_ROOT: infra/terraform/platform
+  ARTIFACT_KEY: lambda/${{ github.sha }}/ragplatform.zip
+
 jobs:
-  determine_environment:
-    runs-on: ubuntu-latest
+  build:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
     outputs:
-      environment: ${{ steps.set-env.outputs.environment }}
-      reset_db_password: ${{ steps.set-env.outputs.reset_db_password }}
-      wait_for_db: ${{ steps.set-env.outputs.wait_for_db }}
-      project_name: ${{ steps.read-vars.outputs.project_name }}
-      aws_region: ${{ steps.read-vars.outputs.aws_region }}
-      bastion_allowed_cidr: ${{ steps.read-vars.outputs.bastion_allowed_cidr }}
-      enable_lifecycle_rules: ${{ steps.read-vars.outputs.enable_lifecycle_rules }}
+      sha256: ${{ steps.bundle.outputs.sha256 }}
     steps:
-      - uses: actions/checkout@v4
-      
-      - id: set-env
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: astral-sh/setup-uv@07a047e608db84b3d8c06cd9a7c7dcc9c355c18e # v10.3.2
+        with:
+          python-version: "3.13"
+      - run: uv sync
+      - name: Build bundle
+        id: bundle
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            echo "environment=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
-          else
-            BRANCH="${GITHUB_REF##*/}"
-            case "$BRANCH" in
-              main) ENV="prod" ;;
-              staging) ENV="staging" ;;
-              develop) ENV="dev" ;;
-              *) ENV="dev" ;;  # fallback default
-            esac
-            echo "environment=$ENV" >> $GITHUB_OUTPUT
-          fi
-          
-          # Default to NOT resetting DB password unless explicitly triggered
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.reset_db_password }}" == "true" ]]; then
-            echo "reset_db_password=true" >> $GITHUB_OUTPUT
-          else
-            echo "reset_db_password=false" >> $GITHUB_OUTPUT
-          fi
-          
-          # Set wait_for_db flag from input or default to true
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ github.event.inputs.wait_for_db }}" == "false" ]]; then
-            echo "wait_for_db=false" >> $GITHUB_OUTPUT
-          else
-            echo "wait_for_db=true" >> $GITHUB_OUTPUT
-          fi
-  
-      - id: read-vars
-        run: |
-          # Determine environment to use
-          ENV="${{ steps.set-env.outputs.environment }}"
-          echo "Using environment: $ENV"
-          
-          # Extract project_name and aws_region from terraform.tfvars
-          if [ -f "environments/$ENV/terraform.tfvars" ]; then
-            PROJECT_NAME=$(grep project_name environments/$ENV/terraform.tfvars | cut -d '=' -f2 | tr -d ' "')
-            AWS_REGION=$(grep aws_region environments/$ENV/terraform.tfvars | cut -d '=' -f2 | tr -d ' "')
-          else
-            echo "Warning: terraform.tfvars file not found for environment $ENV"
-          fi
-          
-          echo "project_name=$PROJECT_NAME" >> $GITHUB_OUTPUT
-          echo "aws_region=$AWS_REGION" >> $GITHUB_OUTPUT
-          
-          # Set S3 lifecycle variables - enable for prod, disable for dev
-          if [[ "$ENV" == "prod" ]]; then
-            echo "enable_lifecycle_rules=true" >> $GITHUB_OUTPUT
-          else
-            echo "enable_lifecycle_rules=false" >> $GITHUB_OUTPUT
-          fi
-          
-          # Set bastion allowed CIDR
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ github.event.inputs.bastion_allowed_cidr }}" ]]; then
-            echo "bastion_allowed_cidr=${{ github.event.inputs.bastion_allowed_cidr }}" >> $GITHUB_OUTPUT
-          else
-            # Default to a safe default
-            echo "bastion_allowed_cidr=0.0.0.0/0" >> $GITHUB_OUTPUT
-          fi
+          uv run python scripts/build_lambda.py | tee build/build.log
+          echo "sha256=$(grep '^sha256_base64=' build/build.log | cut -d= -f2-)" >> "$GITHUB_OUTPUT"
+      - uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
+        with:
+          subject-path: build/ragplatform.zip
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bundle
+          path: build/ragplatform.zip
+          retention-days: 7
 
-  code-quality:
-    name: SonarQube
-    runs-on: ubuntu-latest
-    needs: [determine_environment]
-    env:
-      PROJECT_NAME: ${{ needs.determine_environment.outputs.project_name }}
-      AWS_REGION: ${{ needs.determine_environment.outputs.aws_region }}
+  plan:
+    needs: build
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.environment || 'dev' }}-plan
+    permissions:
+      contents: read
+      id-token: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
-          fetch-depth: 0
-      - name: Setup Python
-        uses: actions/setup-python@v4
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/ragplatform-${{ env.ENVIRONMENT }}-plan
+          aws-region: ${{ vars.AWS_REGION }}
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
         with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install tox and any other packages
-        run: pip install tox
-      - name: Run tox
-        run: tox -e py
-      - name: SonarQube Scan
-        uses: SonarSource/sonarqube-scan-action@v5
+          terraform_version: 1.17.0
+      - name: Plan
+        run: |
+          terraform -chdir="$TF_ROOT" init -input=false \
+            -backend-config="../envs/$ENVIRONMENT.s3.tfbackend" \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+          terraform -chdir="$TF_ROOT" plan -input=false -out=tfplan \
+            -var-file="../envs/$ENVIRONMENT.tfvars" \
+            -var="account_id=${{ vars.AWS_ACCOUNT_ID }}" \
+            -var="artifact_bucket=${{ vars.ARTIFACT_BUCKET }}" \
+            -var="artifact_key=$ARTIFACT_KEY" \
+            -var="artifact_sha256=${{ needs.build.outputs.sha256 }}"
+          terraform -chdir="$TF_ROOT" show -no-color tfplan > plan.txt
+      - name: Refuse plans that destroy protected data
+        run: |
+          # A replacement of the database, the documents bucket or the user pool
+          # would lose data. Those changes need a human, not a pipeline.
+          if terraform -chdir="$TF_ROOT" show -json tfplan | jq -e '
+              [.resource_changes[]
+               | select(.change.actions | index("delete"))
+               | select(.type == "aws_rds_cluster" or .type == "aws_s3_bucket"
+                        or .type == "aws_cognito_user_pool" or .type == "aws_kms_key")]
+              | length > 0' > /dev/null; then
+            echo "::error::The plan deletes or replaces a data-bearing resource. Apply it manually after review."
+            exit 1
+          fi
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: tfplan
+          path: |
+            ${{ env.TF_ROOT }}/tfplan
+            plan.txt
+          retention-days: 1
+
+  apply:
+    needs: [build, plan]
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.environment || 'dev' }}
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/ragplatform-${{ env.ENVIRONMENT }}-deploy
+          aws-region: ${{ vars.AWS_REGION }}
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.17.0
+          terraform_wrapper: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: bundle
+          path: build
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: tfplan
+          path: ${{ env.TF_ROOT }}
+      - name: Upload bundle
+        run: |
+          aws s3 cp build/ragplatform.zip "s3://${{ vars.ARTIFACT_BUCKET }}/$ARTIFACT_KEY" --only-show-errors
+      - name: Record live versions for rollback
+        id: before
+        run: |
+          versions="{}"
+          for fn in api ingest migrate; do
+            v=$(aws lambda get-alias --function-name "ragplatform-$ENVIRONMENT-$fn" --name live \
+                --query FunctionVersion --output text 2>/dev/null || echo "none")
+            versions=$(jq -c --arg k "$fn" --arg v "$v" '. + {($k): $v}' <<< "$versions")
+          done
+          echo "versions=$versions" >> "$GITHUB_OUTPUT"
+          echo "Live versions before deploy: $versions"
+      - name: Apply
+        run: |
+          terraform -chdir="$TF_ROOT" init -input=false \
+            -backend-config="../envs/$ENVIRONMENT.s3.tfbackend" \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+          terraform -chdir="$TF_ROOT" apply -input=false tfplan
+          terraform -chdir="$TF_ROOT" output -json > outputs.json
+      - name: Migrate database
+        run: |
+          fn=$(jq -r .migrate_function_name.value outputs.json)
+          aws lambda invoke --function-name "$fn:live" --cli-read-timeout 310 \
+            --payload '{}' --cli-binary-format raw-in-base64-out migrate.json > invoke.json
+          cat migrate.json
+          if jq -e '.FunctionError' invoke.json > /dev/null; then
+            echo "::error::migration failed"; exit 1
+          fi
+      - name: Smoke test
+        id: smoke
         env:
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-    continue-on-error: true
-    
-  build_lambda:
-    needs: [determine_environment]
-    runs-on: ubuntu-latest
-    env:
-      PROJECT_NAME: ${{ needs.determine_environment.outputs.project_name }}
-      AWS_REGION: ${{ needs.determine_environment.outputs.aws_region }}
-      STAGE: ${{ needs.determine_environment.outputs.environment }}
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '${{ env.PYTHON_VERSION }}'
-      
-      - name: Cache pip
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-      
-      - name: Install dependencies
+          SMOKE_USERNAME: ${{ secrets.SMOKE_USERNAME }}
+          SMOKE_PASSWORD: ${{ secrets.SMOKE_PASSWORD }}
         run: |
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then
-            pip install -r requirements.txt
-          fi
-          
-      - name: Package Lambda functions
-        run: |
-          mkdir -p lambda_artifacts
-          
-          # Package Lambda functions in a loop to reduce redundancy
-          LAMBDA_DIRS=("document_processor" "query_processor" "upload_handler" "db_init" "auth_handler")
-          
-          for DIR in "${LAMBDA_DIRS[@]}"; do
-            if [ -d "src/$DIR" ]; then
-              echo "Packaging $DIR Lambda"
-              cd src/$DIR && pip install -r requirements.txt -t . || true && zip -r ../../lambda_artifacts/$DIR.zip . && cd ../..
-            fi
-          done
-          
-      - name: Upload Lambda artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: lambda-artifacts
-          path: lambda_artifacts/
-          retention-days: 1
-
-  terraform-plan:
-    needs: [determine_environment, build_lambda]
-    runs-on: ubuntu-latest
-    environment: ${{ needs.determine_environment.outputs.environment }}
-    env:
-      PROJECT_NAME: ${{ needs.determine_environment.outputs.project_name }}
-      STAGE: ${{ needs.determine_environment.outputs.environment }}
-      AWS_REGION: ${{ needs.determine_environment.outputs.aws_region }}
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-      
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ needs.determine_environment.outputs.aws_region }}
-
-      - name: Create Backend Configuration 
-        run: |
-          # Create dynamic backend.tf
-          cd environments/$STAGE
-          
-          # Create backend.tf dynamically to use variables
-          cat > backend.tf << EOF
-          # =========================
-          # Terraform Backend Config
-          # =========================
-          terraform {
-            backend "s3" {
-              bucket                  = "${PROJECT_NAME}-terraform-state"
-              key                     = "${STAGE}/terraform.tfstate"
-              region                  = "${AWS_REGION}"
-              dynamodb_table          = "${PROJECT_NAME}-${STAGE}-terraform-state-lock"
-              encrypt                 = true
-          
-              # Skip version validation for CI/CD environments
-              skip_credentials_validation = true
-              skip_metadata_api_check     = true
-              force_path_style            = true
-            }
-          }
-          EOF
-          
-          cd ../..
-
-      - name: Create Terraform State Bucket and DynamoDB Table
-        run: |
-          # Create the S3 bucket if it doesn't exist
-          BUCKET_NAME="${PROJECT_NAME}-terraform-state"
-          DYNAMODB_TABLE="${PROJECT_NAME}-${STAGE}-terraform-state-lock"
-          
-          echo "Creating S3 bucket $BUCKET_NAME if it doesn't exist..."
-          aws s3api head-bucket --bucket $BUCKET_NAME 2>/dev/null || aws s3api create-bucket --bucket $BUCKET_NAME --region $AWS_REGION $(if [[ "$AWS_REGION" != "us-east-1" ]]; then echo "--create-bucket-configuration LocationConstraint=$AWS_REGION"; fi)
-          
-          # Enable versioning on the bucket
-          echo "Enabling versioning on bucket $BUCKET_NAME..."
-          aws s3api put-bucket-versioning --bucket $BUCKET_NAME --versioning-configuration Status=Enabled
-          
-          # Create DynamoDB table for state locking if it doesn't exist
-          echo "Creating DynamoDB table $DYNAMODB_TABLE if it doesn't exist..."
-          aws dynamodb describe-table --table-name $DYNAMODB_TABLE 2>/dev/null || aws dynamodb create-table --table-name $DYNAMODB_TABLE --attribute-definitions AttributeName=LockID,AttributeType=S --key-schema AttributeName=LockID,KeyType=HASH --billing-mode PAY_PER_REQUEST
-            
-      - name: Download Lambda artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: lambda-artifacts
-          path: lambda_artifacts/
-
-      - name: Upload Lambda ZIP files to S3
-        run: |
-          LAMBDA_BUCKET_NAME="${PROJECT_NAME}-${STAGE}-lambda-code"
-
-          # Ensure Lambda bucket exists
-          aws s3api head-bucket --bucket ${LAMBDA_BUCKET_NAME} 2>/dev/null || \
-            aws s3api create-bucket --bucket ${LAMBDA_BUCKET_NAME} \
-            --region ${AWS_REGION} $(if [[ "${AWS_REGION}" != "us-east-1" ]]; then echo "--create-bucket-configuration LocationConstraint=${AWS_REGION}"; fi)
-
-          # Upload Lambda ZIP files to correct path in S3
-          aws s3 cp lambda_artifacts/ s3://${LAMBDA_BUCKET_NAME}/lambda/ --recursive
-          
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
-  
-      - name: Terraform Init
-        working-directory: environments/${{ needs.determine_environment.outputs.environment }}
-        run: terraform init
-      
-      - name: Import Existing Resources
-        working-directory: environments/${{ needs.determine_environment.outputs.environment }}
-        run: |
-          chmod +x ../../scripts/import_resources.sh
-          # ../../scripts/import_resources.sh "$PROJECT_NAME" "$STAGE" "$AWS_REGION" > /dev/null 2>&1 || true
-          ../../scripts/import_resources.sh "$PROJECT_NAME" "$STAGE" "$AWS_REGION" || true
-      
-      - name: Terraform Plan
-        working-directory: environments/${{ needs.determine_environment.outputs.environment }}
-        run: |
-          terraform plan \
-            -lock=false \
-            -var="reset_db_password=${{ needs.determine_environment.outputs.reset_db_password }}" \
-            -var="enable_lifecycle_rules=${{ needs.determine_environment.outputs.enable_lifecycle_rules }}" \
-            -var="bastion_allowed_cidr=[\"${{ needs.determine_environment.outputs.bastion_allowed_cidr }}\"]" \
-            -out=tfplan
-        
-      - name: Upload Terraform Plan
-        uses: actions/upload-artifact@v4
-        with:
-          name: terraform-plan-${{ needs.determine_environment.outputs.environment }}
-          path: environments/${{ needs.determine_environment.outputs.environment }}/tfplan
-          retention-days: 1
-
-  terraform-apply:
-    needs: [determine_environment, build_lambda, terraform-plan]
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-    environment: ${{ needs.determine_environment.outputs.environment }}
-    env:
-      PROJECT_NAME: ${{ needs.determine_environment.outputs.project_name }}
-      STAGE: ${{ needs.determine_environment.outputs.environment }}
-      AWS_REGION: ${{ needs.determine_environment.outputs.aws_region }}
-      RESET_DB_PASSWORD: ${{ needs.determine_environment.outputs.reset_db_password }}
-      WAIT_FOR_DB: ${{ needs.determine_environment.outputs.wait_for_db }}
-    outputs:
-      api_endpoint: ${{ steps.terraform-apply.outputs.api_endpoint }}
-      
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-      
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ needs.determine_environment.outputs.aws_region }}
-      
-      - name: Download Lambda artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: lambda-artifacts
-          path: lambda_artifacts/
-      
-      - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v2
-        with:
-          terraform_version: ${{ env.TERRAFORM_VERSION }}
-      
-      - name: Download Terraform Plan
-        uses: actions/download-artifact@v4
-        with:
-          name: terraform-plan-${{ needs.determine_environment.outputs.environment }}
-          path: environments/${{ needs.determine_environment.outputs.environment }}
-      
-      - name: Terraform Init
-        working-directory: environments/${{ needs.determine_environment.outputs.environment }}
-        run: terraform init
-
-      - name: Terraform Apply
-        id: terraform-apply
-        working-directory: environments/${{ needs.determine_environment.outputs.environment }}
-        run: |
-            # Apply the plan and capture output
-            terraform apply -auto-approve tfplan | tee apply_output.txt
-            
-            # Wait a moment to ensure state is consistent
-            sleep 2
-            
-            echo "Extracting from apply output..."
-            COGNITO_CLIENT_ID=$(grep -m1 "cognito_app_client_id" apply_output.txt | sed -E 's/.*= "?([^"]+)"?.*/\1/' || echo "")
-            API_ENDPOINT=$(grep -m1 "api_endpoint" apply_output.txt | sed -E 's/.*= "?([^"]+)"?.*/\1/' || echo "")
-            
-            echo "Extracted COGNITO_CLIENT_ID: $COGNITO_CLIENT_ID"
-            echo "Extracted API_ENDPOINT: $API_ENDPOINT"
-            
-            # Create a copy in the root directory for the artifact upload
-            echo "COGNITO_CLIENT_ID=$COGNITO_CLIENT_ID" > ../../env_vars.env
-            echo "API_ENDPOINT=$API_ENDPOINT" >> ../../env_vars.env
-
-            # Also set them as environment variables for the current job
-            echo "api_endpoint=$API_ENDPOINT" >> $GITHUB_OUTPUT
-
-      - name: Upload UI Env File as Artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: ui-env-vars
-          path: env_vars.env
-
-      - name: Wait for RDS instance to be available
-        if: ${{ needs.determine_environment.outputs.wait_for_db == 'true' }}
-        run: |
-          DB_INSTANCE_ID="${PROJECT_NAME}-${STAGE}-postgres"
-          
-          echo "Waiting for RDS instance $DB_INSTANCE_ID to be available..."
-          
-          # Wait for up to 10 minutes for the RDS instance to be available
-          MAX_ATTEMPTS=60
-          ATTEMPT=1
-          
-          while [ $ATTEMPT -le $MAX_ATTEMPTS ]; do
-            STATUS=$(aws rds describe-db-instances --db-instance-identifier $DB_INSTANCE_ID --region $AWS_REGION --query "DBInstances[0].DBInstanceStatus" --output text 2>/dev/null || echo "not-found")
-            
-            echo "Attempt $ATTEMPT/$MAX_ATTEMPTS: RDS status is '$STATUS'"
-            
-            if [ "$STATUS" = "available" ]; then
-              echo "RDS instance is available. Proceeding."
-              break
-            elif [ "$STATUS" = "not-found" ]; then
-              echo "RDS instance not found. Waiting..."
-            else
-              echo "RDS instance is in $STATUS state. Waiting..."
-            fi
-            
-            # If we've reached the maximum attempts, exit with a warning
-            if [ $ATTEMPT -eq $MAX_ATTEMPTS ]; then
-              echo "Warning: Maximum attempts reached. RDS instance may not be fully available yet."
-              break
-            fi
-            
-            ATTEMPT=$((ATTEMPT+1))
-            sleep 10
-          done
-
-      - name: Update Lambda env vars if DB password was reset
-        if: ${{ needs.determine_environment.outputs.reset_db_password == 'true' }}
-        run: |
-          # Get the DB credentials secret ARN from terraform output
-          cd environments/$STAGE
-          DB_SECRET_ARN=$(terraform output -raw db_credentials_secret_arn 2>/dev/null || echo "")
-          cd ../..
-          
-          if [ -n "$DB_SECRET_ARN" ]; then
-            echo "Updating Lambda functions with new DB credentials secret ARN..."
-            
-            # Update all Lambda functions that use the DB credentials
-            FUNCTION_NAMES=(
-              "${PROJECT_NAME}-${STAGE}-document-processor"
-              "${PROJECT_NAME}-${STAGE}-query-processor"
-              "${PROJECT_NAME}-${STAGE}-upload-handler"
-              "${PROJECT_NAME}-${STAGE}-db-init"
-            )
-            
-            for FUNCTION_NAME in "${FUNCTION_NAMES[@]}"; do
-              echo "Updating function: $FUNCTION_NAME"
-              # Get current environment variables
-              ENV_VARS=$(aws lambda get-function-configuration --function-name "$FUNCTION_NAME" --query "Environment.Variables" || echo "{}")
-              
-              # Update DB_SECRET_ARN in environment variables if it exists
-              if [[ $ENV_VARS == *"DB_SECRET_ARN"* ]]; then
-                aws lambda update-function-configuration \
-                  --function-name "$FUNCTION_NAME" \
-                  --environment "Variables={DB_SECRET_ARN=$DB_SECRET_ARN}"
-                echo "Updated DB_SECRET_ARN for $FUNCTION_NAME"
-              fi
+          url=$(jq -r .api_url.value outputs.json)
+          curl -sSf --retry 5 --retry-delay 3 "$url/v1/health"
+          # Prod disables password sign-in (allow_password_auth = false) and requires
+          # MFA, so USER_PASSWORD_AUTH cannot get a token there. Its smoke test stops at
+          # /v1/health; ask a real question on dev and test.
+          if [ "$ENVIRONMENT" = "prod" ]; then
+            echo "prod: health check only, password sign-in is disabled"
+          elif [ -n "$SMOKE_USERNAME" ]; then
+            client=$(jq -r .user_pool_client_id.value outputs.json)
+            token=$(aws cognito-idp initiate-auth --client-id "$client" --auth-flow USER_PASSWORD_AUTH \
+                    --auth-parameters "USERNAME=$SMOKE_USERNAME,PASSWORD=$SMOKE_PASSWORD" \
+                    --query AuthenticationResult.IdToken --output text)
+            # Aurora may be resuming from 0 ACU: 503 with Retry-After is retried.
+            for attempt in 1 2 3 4; do
+              code=$(curl -s -o answer.json -w '%{http_code}' -X POST "$url/v1/query" \
+                     -H "Authorization: $token" -H "Content-Type: application/json" \
+                     -d '{"question": "What is this deployment smoke test checking?", "use_cache": false}')
+              [ "$code" != "503" ] && break
+              sleep 15
             done
-          else
-            echo "DB secret ARN not found, skipping Lambda environment updates"
+            echo "query status $code"; jq '{status, model_id, latency_ms}' answer.json
+            [ "$code" = "200" ]
           fi
-      
-      - name: Update Lambda functions
+      - name: Roll back aliases
+        if: failure() && steps.before.outputs.versions != ''
+        env:
+          VERSIONS: ${{ steps.before.outputs.versions }}
         run: |
-          # Special handling for db_init function and auth_handler which may not be managed by Terraform
-          DB_INIT_NAME="${PROJECT_NAME}-${STAGE}-db-init"
-          AUTH_HANDLER_NAME="${PROJECT_NAME}-${STAGE}-auth-handler"
-          LAMBDA_BUCKET_NAME="${PROJECT_NAME}-${STAGE}-lambda-code"
-          
-          # Update the functions that might not be in Terraform
-          echo "Updating Lambda functions..."
-          aws lambda update-function-code --function-name $DB_INIT_NAME --s3-bucket $LAMBDA_BUCKET_NAME --s3-key "lambda/db_init.zip" || echo "Failed to update db_init, continuing..."
-          aws lambda update-function-code --function-name $AUTH_HANDLER_NAME --s3-bucket $LAMBDA_BUCKET_NAME --s3-key "lambda/auth_handler.zip" || echo "Failed to update auth_handler, continuing..."
-      
-      - name: Invoke Database Init Lambda
-        run: |
-          DB_INIT_NAME="${PROJECT_NAME}-${STAGE}-db-init"
-          
-          # Invoke the database initialization Lambda to set up PGVector
-          echo "Initializing PostgreSQL database with PGVector..."
-          
-          # Maximum retry attempts
-          MAX_RETRIES=5
-          RETRY_COUNT=0
-          SUCCESS=false
-          
-          while [ $RETRY_COUNT -lt $MAX_RETRIES ] && [ "$SUCCESS" != "true" ]; do
-            RETRY_COUNT=$((RETRY_COUNT+1))
-            
-            echo "Attempt $RETRY_COUNT to invoke DB init Lambda..."
-            RESPONSE=$(aws lambda invoke --function-name $DB_INIT_NAME --payload '{}' /tmp/db_init_output.json 2>&1)
-            STATUS_CODE=$?
-            
-            if [ $STATUS_CODE -eq 0 ]; then
-              # Check if the Lambda executed successfully
-              FUNCTION_ERROR=$(echo "$RESPONSE" | grep "FunctionError" || echo "")
-              
-              if [ -z "$FUNCTION_ERROR" ]; then
-                echo "DB initialization Lambda invoked successfully"
-                cat /tmp/db_init_output.json || echo "Could not get response from DB init Lambda"
-                SUCCESS=true
-              else
-                echo "DB initialization Lambda returned an error. Waiting before retry..."
-                cat /tmp/db_init_output.json || echo "Could not get error details"
-                sleep 30
-              fi
-            else
-              echo "Failed to invoke DB initialization Lambda. Waiting before retry..."
-              echo "Error: $RESPONSE"
-              sleep 30
+          echo "Deploy failed after apply; pointing aliases back to the previous versions."
+          for fn in api ingest migrate; do
+            v=$(jq -r --arg k "$fn" '.[$k]' <<< "$VERSIONS")
+            if [ "$v" != "none" ] && [ "$v" != "null" ]; then
+              aws lambda update-alias --function-name "ragplatform-$ENVIRONMENT-$fn" --name live \
+                --function-version "$v" > /dev/null
+              echo "$fn -> version $v"
             fi
           done
-          
-          if [ "$SUCCESS" != "true" ]; then
-            echo "Warning: Failed to successfully invoke DB initialization Lambda after $MAX_RETRIES attempts"
-            echo "Manual initialization may be required"
-          fi
-
-      - name: Verify deployment
-        run: |
-          UPLOAD_HANDLER_NAME="${PROJECT_NAME}-${STAGE}-upload-handler"
-          echo "Verifying deployment by invoking ${UPLOAD_HANDLER_NAME}..."
-          aws lambda invoke --function-name $UPLOAD_HANDLER_NAME --payload '{"action": "healthcheck"}' response.json || echo "Verification failed, but deployment may still be successful"
-          cat response.json || echo "Could not get response"
-
-  integration_tests:
-    needs: [determine_environment, terraform-apply]
-    runs-on: ubuntu-latest
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
-    environment: ${{ needs.determine_environment.outputs.environment }}
-    env:
-      PROJECT_NAME: ${{ needs.determine_environment.outputs.project_name }}
-      STAGE: ${{ needs.determine_environment.outputs.environment }}
-      AWS_REGION: ${{ needs.determine_environment.outputs.aws_region }}
-      API_ENDPOINT: ${{ needs.terraform-apply.outputs.api_endpoint }}
-    steps:
-      - uses: actions/checkout@v4
-      
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v2
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ needs.determine_environment.outputs.aws_region }}
-      
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '${{ env.PYTHON_VERSION }}'
-        
-      - name: Cache pip
-        uses: actions/cache@v3
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          if [ -f requirements.txt ]; then
-            pip install -r requirements.txt
-          fi
-          if [ -f requirements-dev.txt ]; then
-            pip install -r requirements-dev.txt
-          fi
-        
-      - name: Check for pytest config files
-        run: |
-          echo "Looking for pytest configuration files that might interfere with the tests..."
-          
-          # Check for and temporarily move aside any pytest config files
-          CONFIG_FILES=("pytest.ini" "pyproject.toml" ".coveragerc" "conftest.py")
-          for FILE in "${CONFIG_FILES[@]}"; do
-            if [ -f "$FILE" ]; then
-              echo "Found $FILE, temporarily moving it aside for integration tests"
-              mv "$FILE" "${FILE}.bak"
-            fi
-          done
-          
-          # Check in the src directory too
-          if [ -d "src" ] && [ -f "src/conftest.py" ]; then
-            echo "Found src/conftest.py, temporarily moving it aside"
-            mv "src/conftest.py" "src/conftest.py.bak"
-          fi
-    
-      - name: Run integration tests
-        run: |
-          echo "Using API endpoint: $API_ENDPOINT"
-          
-          if [ "$API_ENDPOINT" == "https://example.com" ]; then
-            echo "Skipping integration tests as API endpoint could not be determined"
-            echo "<testsuites><testsuite name='placeholder'><testcase name='placeholder'><skipped message='API endpoint not available'/></testcase></testsuite></testsuites>" > integration-test-results.xml
-          else
-            # Use our custom integration test script
-            echo "Running custom integration test script..."
-            python src/tests/integration/run_integration_tests.py
-          fi
-        
-      - name: Restore config files
-        if: always()
-        run: |
-          echo "Restoring any temporarily moved config files..."
-          
-          # Restore any temporarily moved pytest config files
-          CONFIG_FILES=("pytest.ini" "pyproject.toml" ".coveragerc" "conftest.py")
-          for FILE in "${CONFIG_FILES[@]}"; do
-            if [ -f "${FILE}.bak" ]; then
-              echo "Restoring $FILE"
-              mv "${FILE}.bak" "$FILE"
-            fi
-          done
-          
-          # Restore in the src directory too
-          if [ -d "src" ] && [ -f "src/conftest.py.bak" ]; then
-            echo "Restoring src/conftest.py"
-            mv "src/conftest.py.bak" "src/conftest.py"
-          fi
-        
-      - name: Upload test results
-        uses: actions/upload-artifact@v4
-        with:
-          name: integration-test-results
-          path: integration-test-results.xml
+          echo "::warning::Terraform state still records the new versions. Re-run the deploy for the previous commit to reconcile, or fix forward."

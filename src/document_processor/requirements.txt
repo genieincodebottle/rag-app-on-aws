@@ -1,7 +1,0 @@
-boto3>=1.38.6
-psycopg2-binary>=2.9.10
-langchain>=0.3.24
-langchain-community>=0.3.23
-pgvector>=0.4.1
-pypdf>=5.4.0
-google-genai>=1.13.0

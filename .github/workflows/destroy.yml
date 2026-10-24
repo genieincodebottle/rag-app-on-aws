@@ -1,0 +1,57 @@
+# Tear down dev or test. Production cannot be destroyed from a workflow: the
+# choice list does not offer it, deletion protection is on in prod, and the
+# job re-checks the input.
+name: destroy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Environment to destroy (dev or test only)
+        type: choice
+        options: [dev, test]
+      confirm:
+        description: Type the environment name again to confirm
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  destroy:
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      ENVIRONMENT: ${{ inputs.environment }}
+      TF_ROOT: infra/terraform/platform
+    steps:
+      - name: Check confirmation
+        env:
+          CONFIRM: ${{ inputs.confirm }} # passed as data, never interpolated into the script
+        run: |
+          if [ "$ENVIRONMENT" = "prod" ] || [ "$ENVIRONMENT" != "$CONFIRM" ]; then
+            echo "::error::Confirmation does not match, or prod was requested."; exit 1
+          fi
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/ragplatform-${{ inputs.environment }}-deploy
+          aws-region: ${{ vars.AWS_REGION }}
+      - uses: hashicorp/setup-terraform@dfe3c3f87815947d99a8997f908cb6525fc44e9e # v4.0.1
+        with:
+          terraform_version: 1.17.0
+      - name: Destroy
+        run: |
+          terraform -chdir="$TF_ROOT" init -input=false \
+            -backend-config="../envs/$ENVIRONMENT.s3.tfbackend" \
+            -backend-config="bucket=${{ vars.TF_STATE_BUCKET }}"
+          # The artifact values do not matter for a destroy, but the variables are required.
+          terraform -chdir="$TF_ROOT" destroy -input=false -auto-approve \
+            -var-file="../envs/$ENVIRONMENT.tfvars" \
+            -var="account_id=${{ vars.AWS_ACCOUNT_ID }}" \
+            -var="artifact_bucket=${{ vars.ARTIFACT_BUCKET }}" \
+            -var="artifact_key=unused" -var="artifact_sha256=unused"

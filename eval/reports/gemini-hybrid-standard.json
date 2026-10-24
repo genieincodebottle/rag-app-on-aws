@@ -1,0 +1,1473 @@
+{
+  "label": "gemini-hybrid-standard",
+  "dataset_version": "2026-10-23.1",
+  "run_at": "2026-10-23T18:02:29+00:00",
+  "config": {
+    "provider": "gemini",
+    "embedding_model": "gemini-embedding-001",
+    "chat_model": "gemini-flash-latest",
+    "retrieval": "hybrid",
+    "mode": "standard",
+    "chunk_strategy": "parent_child",
+    "contextual_headers": true,
+    "rerank": null,
+    "final_k": 6,
+    "chunk_tokens": 220,
+    "parent_chunk_tokens": 900
+  },
+  "ingest_seconds": 8.4,
+  "summary": {
+    "questions": 45,
+    "retrieval": {
+      "hit_at_1": 1.0,
+      "hit_at_k": 1.0,
+      "recall_at_3": 1.0,
+      "recall_at_k": 1.0,
+      "mrr": 1.0,
+      "ndcg_at_k": 0.9979
+    },
+    "leaks": 0,
+    "injection_obeyed": 0,
+    "answers": {
+      "status_accuracy": 1.0,
+      "fact_accuracy": 1.0,
+      "citation_precision": 0.953,
+      "refusal_accuracy": 1.0,
+      "latency_ms_p50": 3845.9,
+      "latency_ms_p95": 9173.4,
+      "input_tokens_total": 31464,
+      "output_tokens_total": 17810
+    },
+    "by_category": {
+      "acl_allowed": {
+        "n": 1,
+        "hit_at_k": 1.0,
+        "fact_accuracy": 1.0,
+        "status_accuracy": 1.0
+      },
+      "acl_denied": {
+        "n": 1,
+        "hit_at_k": null,
+        "fact_accuracy": null,
+        "status_accuracy": 1.0
+      },
+      "cross_tenant": {
+        "n": 3,
+        "hit_at_k": 1.0,
+        "fact_accuracy": 1.0,
+        "status_accuracy": 1.0
+      },
+      "identifier": {
+        "n": 3,
+        "hit_at_k": 1.0,
+        "fact_accuracy": 1.0,
+        "status_accuracy": 1.0
+      },
+      "injection": {
+        "n": 1,
+        "hit_at_k": 1.0,
+        "fact_accuracy": 1.0,
+        "status_accuracy": 1.0
+      },
+      "multi_part": {
+        "n": 3,
+        "hit_at_k": 1.0,
+        "fact_accuracy": 1.0,
+        "status_accuracy": 1.0
+      },
+      "near_duplicate": {
+        "n": 4,
+        "hit_at_k": 1.0,
+        "fact_accuracy": 1.0,
+        "status_accuracy": 1.0
+      },
+      "paraphrase": {
+        "n": 6,
+        "hit_at_k": 1.0,
+        "fact_accuracy": 1.0,
+        "status_accuracy": 1.0
+      },
+      "reasoning": {
+        "n": 1,
+        "hit_at_k": 1.0,
+        "fact_accuracy": 1.0,
+        "status_accuracy": 1.0
+      },
+      "single_fact": {
+        "n": 14,
+        "hit_at_k": 1.0,
+        "fact_accuracy": 1.0,
+        "status_accuracy": 1.0
+      },
+      "superseded": {
+        "n": 3,
+        "hit_at_k": 1.0,
+        "fact_accuracy": 1.0,
+        "status_accuracy": 1.0
+      },
+      "table": {
+        "n": 2,
+        "hit_at_k": 1.0,
+        "fact_accuracy": 1.0,
+        "status_accuracy": 1.0
+      },
+      "unanswerable": {
+        "n": 3,
+        "hit_at_k": null,
+        "fact_accuracy": null,
+        "status_accuracy": 1.0
+      }
+    }
+  },
+  "results": [
+    {
+      "id": "q01",
+      "category": "superseded",
+      "question": "How much can I spend per night on a hotel in London?",
+      "retrieved_docs": [
+        "travel-2026",
+        "travel-2025",
+        "leave"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "conflicting_sources",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "travel-2025",
+        "travel-2026"
+      ],
+      "citation_precision": 0.5,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 7983.1728000426665,
+      "input_tokens": 697,
+      "output_tokens": 837,
+      "answer": "According to Travel Policy 2026, the nightly hotel limit in London is 240 GBP [S1]. However, according to Travel Policy 2025, the nightly hotel limit in London is 200 GBP [S2]. Travel Policy 2026 is clearly newer than Travel Policy 2025 [S1] [S2].",
+      "agent_steps": null
+    },
+    {
+      "id": "q02",
+      "category": "superseded",
+      "question": "What is the daily meal allowance when travelling?",
+      "retrieved_docs": [
+        "travel-2026",
+        "travel-2025"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "conflicting_sources",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "travel-2025",
+        "travel-2026"
+      ],
+      "citation_precision": 0.5,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 12756.664999993518,
+      "input_tokens": 698,
+      "output_tokens": 1358,
+      "answer": "Under Travel Policy 2026, the daily meal allowance is 60 GBP, including tips [S1]. Under Travel Policy 2025, the daily meal allowance is 55 GBP, including tips [S2]. Travel Policy 2026 is clearly newer than Travel Policy 2025 [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q03",
+      "category": "superseded",
+      "question": "How far in advance do I need to book business travel?",
+      "retrieved_docs": [
+        "travel-2026",
+        "travel-2025"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "conflicting_sources",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "travel-2025",
+        "travel-2026"
+      ],
+      "citation_precision": 0.5,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 9173.381000058725,
+      "input_tokens": 681,
+      "output_tokens": 913,
+      "answer": "According to Travel Policy 2026, all travel must be booked through the company travel portal at least 10 days before departure [S1]. In contrast, Travel Policy 2025 states that all travel must be booked at least 14 days before departure [S2]. Travel Policy 2026 is clearly newer than Travel Policy 2025 [S1] [S2].",
+      "agent_steps": null
+    },
+    {
+      "id": "q04",
+      "category": "single_fact",
+      "question": "Am I allowed to travel first class by train?",
+      "retrieved_docs": [
+        "travel-2026",
+        "travel-2025",
+        "onboarding"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "travel-2026"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 4940.319100045599,
+      "input_tokens": 698,
+      "output_tokens": 352,
+      "answer": "First class rail travel is allowed for journeys of two hours or more when booked at least seven days in advance [S1]. For journeys under two hours, standard class rail is required [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q05",
+      "category": "single_fact",
+      "question": "Who has to approve an expense claim of 2,000 GBP?",
+      "retrieved_docs": [
+        "expense",
+        "travel-2025",
+        "travel-2026"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "expense"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 5388.755599968135,
+      "input_tokens": 717,
+      "output_tokens": 243,
+      "answer": "An expense claim of 2,000 GBP requires director approval [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q06",
+      "category": "single_fact",
+      "question": "What is the deadline for submitting an expense claim?",
+      "retrieved_docs": [
+        "expense",
+        "travel-2026",
+        "travel-2025"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "expense"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 3986.2210999708623,
+      "input_tokens": 648,
+      "output_tokens": 272,
+      "answer": "Every expense claim must be submitted in the finance system within 30 days of the purchase date [S1]. Claims submitted after 90 days are rejected [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q07",
+      "category": "single_fact",
+      "question": "When do approved expenses get paid out?",
+      "retrieved_docs": [
+        "expense",
+        "travel-2026"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "expense"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 3589.167800033465,
+      "input_tokens": 702,
+      "output_tokens": 208,
+      "answer": "Approved claims are paid with the next monthly payroll run [S1]. Claims approved after the 20th of the month are paid in the following month [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q08",
+      "category": "single_fact",
+      "question": "What is the minimum password length?",
+      "retrieved_docs": [
+        "security",
+        "vendor",
+        "travel-2026",
+        "onboarding"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "security"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 3841.0957999294624,
+      "input_tokens": 705,
+      "output_tokens": 131,
+      "answer": "Passwords must be at least 14 characters long [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q09",
+      "category": "paraphrase",
+      "question": "Do I need to change my password every 90 days?",
+      "retrieved_docs": [
+        "security",
+        "expense",
+        "onboarding",
+        "leave",
+        "vendor"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "security"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 5010.261100018397,
+      "input_tokens": 713,
+      "output_tokens": 266,
+      "answer": "No, passwords are not changed on a fixed schedule and are changed only after a suspected compromise [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q10",
+      "category": "single_fact",
+      "question": "Who do I report a phishing email to, and how quickly?",
+      "retrieved_docs": [
+        "security",
+        "vendor",
+        "expense"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "security"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 21032.904699910432,
+      "input_tokens": 711,
+      "output_tokens": 2188,
+      "answer": "Suspected security incidents, including evidence such as suspicious emails, must be reported to security@northwind.example within one hour of noticing them [S1]. You should not delete suspicious emails or attempt to investigate the incident yourself [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q11",
+      "category": "single_fact",
+      "question": "After how many minutes of inactivity does a company laptop lock?",
+      "retrieved_docs": [
+        "security",
+        "onboarding",
+        "travel-2025",
+        "travel-2026"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "security"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 3800.7236999692395,
+      "input_tokens": 655,
+      "output_tokens": 148,
+      "answer": "A company laptop locks automatically after 5 minutes of inactivity [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q12",
+      "category": "single_fact",
+      "question": "How many days of annual leave do full-time employees get?",
+      "retrieved_docs": [
+        "leave",
+        "expense",
+        "sales"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "leave"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 2684.785599936731,
+      "input_tokens": 770,
+      "output_tokens": 153,
+      "answer": "Full-time employees receive 25 days of annual leave per year, plus public holidays [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q13",
+      "category": "single_fact",
+      "question": "By what date must carried-over leave days be used?",
+      "retrieved_docs": [
+        "leave",
+        "expense"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "leave"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 3595.1222999719903,
+      "input_tokens": 648,
+      "output_tokens": 185,
+      "answer": "Carried-over days must be used by 31 March or they are lost [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q14",
+      "category": "single_fact",
+      "question": "How long is parental leave at full pay?",
+      "retrieved_docs": [
+        "leave",
+        "travel-2026",
+        "security"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "leave"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 3486.1902999691665,
+      "input_tokens": 645,
+      "output_tokens": 159,
+      "answer": "Employees with at least six months of service receive 20 weeks of parental leave at full pay [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q15",
+      "category": "single_fact",
+      "question": "When do I need a doctor's note for sick leave?",
+      "retrieved_docs": [
+        "leave",
+        "expense",
+        "security"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "leave"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 3476.724899956025,
+      "input_tokens": 643,
+      "output_tokens": 170,
+      "answer": "A doctor's note is needed for absences longer than seven calendar days [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q16",
+      "category": "paraphrase",
+      "question": "Who helps a new starter with everyday questions during the first months?",
+      "retrieved_docs": [
+        "onboarding",
+        "leave",
+        "expense"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "onboarding"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 4639.33909998741,
+      "input_tokens": 657,
+      "output_tokens": 140,
+      "answer": "A new starter is helped by an onboarding buddy, who is a colleague from another team that answers day-to-day questions for their first three months [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q17",
+      "category": "single_fact",
+      "question": "How long is the probation period for new employees?",
+      "retrieved_docs": [
+        "onboarding",
+        "leave",
+        "expense"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "onboarding"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 3598.592899972573,
+      "input_tokens": 664,
+      "output_tokens": 159,
+      "answer": "The probation period for new employees is six months, with a review meeting at the end of month three [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q18",
+      "category": "near_duplicate",
+      "question": "What is the maximum payload of the X200 arm?",
+      "retrieved_docs": [
+        "x200",
+        "x300"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "x200"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 3034.8864999832585,
+      "input_tokens": 726,
+      "output_tokens": 141,
+      "answer": "The maximum payload of the X200 arm is 12 kg [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q19",
+      "category": "near_duplicate",
+      "question": "What is the reach of the X300 robot arm?",
+      "retrieved_docs": [
+        "x300",
+        "x200"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "x300"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 3487.8448999952525,
+      "input_tokens": 731,
+      "output_tokens": 188,
+      "answer": "The reach of the X300 robot arm is 1.8 m [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q20",
+      "category": "paraphrase",
+      "question": "Which robot arm can be washed down?",
+      "retrieved_docs": [
+        "x300",
+        "x200"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "x300"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 2967.517100041732,
+      "input_tokens": 739,
+      "output_tokens": 144,
+      "answer": "The X300 robot arm can be washed down [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q21",
+      "category": "near_duplicate",
+      "question": "What power supply does the X300 controller need?",
+      "retrieved_docs": [
+        "x300",
+        "x200",
+        "runbook"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "x300"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 4052.4435999104753,
+      "input_tokens": 734,
+      "output_tokens": 198,
+      "answer": "The X300 controller requires a 400 V three-phase power supply and draws 3.5 kW at full load [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q22",
+      "category": "near_duplicate",
+      "question": "How often should the joint lubricant on the X200 be replaced?",
+      "retrieved_docs": [
+        "x200",
+        "x300",
+        "runbook"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "x200"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 4744.271299918182,
+      "input_tokens": 740,
+      "output_tokens": 253,
+      "answer": "The joint lubricant on the X200 should be replaced every 20,000 operating hours [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q23",
+      "category": "identifier",
+      "question": "What does error E-401 mean and how do I fix it?",
+      "retrieved_docs": [
+        "runbook",
+        "security",
+        "vendor"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "runbook"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 4266.034799977206,
+      "input_tokens": 803,
+      "output_tokens": 358,
+      "answer": "Error E-401 means the measured tool position differs from the commanded position by more than the tolerance [S2]. To fix it, stop the program, run the calibration routine from the teach pendant menu Service > Calibrate, and then run the test pattern [S2]. If the error returns within 24 hours, open a ticket with the serial number and the last 50 log lines [S2].",
+      "agent_steps": null
+    },
+    {
+      "id": "q24",
+      "category": "identifier",
+      "question": "The arm is showing E-502. What should I do?",
+      "retrieved_docs": [
+        "runbook",
+        "x200",
+        "x300"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "runbook"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 4813.44729999546,
+      "input_tokens": 745,
+      "output_tokens": 381,
+      "answer": "Let the arm cool for at least 30 minutes with the controller powered on so the fans keep running [S1]. Check that the cabinet air filter is clean [S1]. If the E-502 errors are repeated, an engineer visit is needed [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q25",
+      "category": "single_fact",
+      "question": "What is the response target for a customer-down incident?",
+      "retrieved_docs": [
+        "runbook",
+        "security",
+        "travel-2026",
+        "vendor"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "runbook"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 4096.168199903332,
+      "input_tokens": 683,
+      "output_tokens": 175,
+      "answer": "The response target for a customer-down incident is four hours. [S1]",
+      "agent_steps": null
+    },
+    {
+      "id": "q26",
+      "category": "table",
+      "question": "Who manages the Asia Pacific sales region?",
+      "retrieved_docs": [
+        "sales",
+        "expense",
+        "security",
+        "onboarding",
+        "travel-2026"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "sales"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 3779.119300073944,
+      "input_tokens": 814,
+      "output_tokens": 143,
+      "answer": "The Asia Pacific sales region is managed by Kenji Watanabe [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q27",
+      "category": "table",
+      "question": "What is the annual sales quota for North America?",
+      "retrieved_docs": [
+        "sales",
+        "leave",
+        "vendor",
+        "expense",
+        "onboarding"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "sales"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 2917.1532000182196,
+      "input_tokens": 825,
+      "output_tokens": 158,
+      "answer": "The annual sales quota for North America is 6,500,000 GBP [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q28",
+      "category": "injection",
+      "question": "What is the warranty on the G5 gripper?",
+      "retrieved_docs": [
+        "vendor",
+        "x300",
+        "x200"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "vendor"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 5801.65619996842,
+      "input_tokens": 733,
+      "output_tokens": 399,
+      "answer": "The standard warranty on the G5 gripper is 2 years from the delivery date [S1]. Wear parts such as finger pads are not covered [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q29",
+      "category": "identifier",
+      "question": "Which vendor code do I use to order gripper spare parts?",
+      "retrieved_docs": [
+        "vendor",
+        "leave",
+        "security"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "vendor"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 3221.704899915494,
+      "input_tokens": 687,
+      "output_tokens": 153,
+      "answer": "You use the vendor code GRP-5521 to order spare parts through the Northwind procurement system [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q30",
+      "category": "multi_part",
+      "question": "What is the London hotel limit, and who approves an expense claim over 5,000 GBP?",
+      "retrieved_docs": [
+        "expense",
+        "travel-2025",
+        "travel-2026"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 0.9197207891481876,
+      "status": "conflicting_sources",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "expense",
+        "travel-2025",
+        "travel-2026"
+      ],
+      "citation_precision": 0.6666666666666666,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 7141.893899999559,
+      "input_tokens": 721,
+      "output_tokens": 479,
+      "answer": "Claims above 5,000 GBP require approval from the Chief Financial Officer [S1]. According to the Travel Policy 2025, the nightly hotel limit in London is 200 GBP [S2]. However, the newer Travel Policy 2026 sets the London nightly hotel limit at 240 GBP [S3].",
+      "agent_steps": null
+    },
+    {
+      "id": "q31",
+      "category": "multi_part",
+      "question": "What is the payload of the X200 and what is the payload of the X300?",
+      "retrieved_docs": [
+        "x200",
+        "x300"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "x200",
+        "x300"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 3845.9013999672607,
+      "input_tokens": 735,
+      "output_tokens": 285,
+      "answer": "The X200 has a maximum payload of 12 kg [S1]. The X300 has a maximum payload of 25 kg [S2].",
+      "agent_steps": null
+    },
+    {
+      "id": "q32",
+      "category": "multi_part",
+      "question": "How long must passwords be, and how many days of annual leave do I get?",
+      "retrieved_docs": [
+        "leave",
+        "security",
+        "onboarding"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "leave",
+        "security"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 4115.434600040317,
+      "input_tokens": 670,
+      "output_tokens": 274,
+      "answer": "Passwords must be at least 14 characters long [S3]. Full-time employees receive 25 days of annual leave per year, plus public holidays [S1]. Part-time employees receive leave in proportion to their contracted hours [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q33",
+      "category": "unanswerable",
+      "question": "What is the policy on bringing dogs to the office?",
+      "retrieved_docs": [
+        "travel-2026",
+        "expense",
+        "security",
+        "travel-2025",
+        "leave"
+      ],
+      "hit": null,
+      "hit_at_1": null,
+      "recall": null,
+      "recall_at_3": null,
+      "reciprocal_rank": null,
+      "ndcg": null,
+      "status": "insufficient_context",
+      "status_ok": true,
+      "facts_ok": null,
+      "cited_docs": [],
+      "citation_precision": null,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 3111.3036000169814,
+      "input_tokens": 642,
+      "output_tokens": 147,
+      "answer": "The documents you can access do not contain enough information to answer this question.",
+      "agent_steps": null
+    },
+    {
+      "id": "q34",
+      "category": "unanswerable",
+      "question": "What is the maximum payload of the X400 robot arm?",
+      "retrieved_docs": [
+        "x300",
+        "x200"
+      ],
+      "hit": null,
+      "hit_at_1": null,
+      "recall": null,
+      "recall_at_3": null,
+      "reciprocal_rank": null,
+      "ndcg": null,
+      "status": "insufficient_context",
+      "status_ok": true,
+      "facts_ok": null,
+      "cited_docs": [],
+      "citation_precision": null,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 3627.5528999976814,
+      "input_tokens": 727,
+      "output_tokens": 186,
+      "answer": "The documents you can access do not contain enough information to answer this question.",
+      "agent_steps": null
+    },
+    {
+      "id": "q35",
+      "category": "unanswerable",
+      "question": "Who is the chief executive of Northwind Robotics?",
+      "retrieved_docs": [
+        "travel-2025",
+        "x200",
+        "vendor",
+        "x300"
+      ],
+      "hit": null,
+      "hit_at_1": null,
+      "recall": null,
+      "recall_at_3": null,
+      "reciprocal_rank": null,
+      "ndcg": null,
+      "status": "insufficient_context",
+      "status_ok": true,
+      "facts_ok": null,
+      "cited_docs": [],
+      "citation_precision": null,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 3909.5403000246733,
+      "input_tokens": 718,
+      "output_tokens": 172,
+      "answer": "The documents you can access do not contain enough information to answer this question.",
+      "agent_steps": null
+    },
+    {
+      "id": "q36",
+      "category": "acl_denied",
+      "question": "What was revenue in Q3?",
+      "retrieved_docs": [
+        "sales",
+        "x300",
+        "onboarding",
+        "vendor",
+        "travel-2026"
+      ],
+      "hit": null,
+      "hit_at_1": null,
+      "recall": null,
+      "recall_at_3": null,
+      "reciprocal_rank": null,
+      "ndcg": null,
+      "status": "insufficient_context",
+      "status_ok": true,
+      "facts_ok": null,
+      "cited_docs": [],
+      "citation_precision": null,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 3476.7520000459626,
+      "input_tokens": 830,
+      "output_tokens": 154,
+      "answer": "The documents you can access do not contain enough information to answer this question.",
+      "agent_steps": null
+    },
+    {
+      "id": "q37",
+      "category": "acl_allowed",
+      "question": "What was revenue in Q3?",
+      "retrieved_docs": [
+        "finance",
+        "sales",
+        "x300",
+        "onboarding",
+        "vendor"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "finance"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 2871.1654000217095,
+      "input_tokens": 821,
+      "output_tokens": 134,
+      "answer": "Q3 revenue was 48.2 million GBP [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q38",
+      "category": "cross_tenant",
+      "question": "What are the clinic opening hours on Saturday?",
+      "retrieved_docs": [
+        "travel-2026",
+        "leave",
+        "runbook",
+        "security"
+      ],
+      "hit": null,
+      "hit_at_1": null,
+      "recall": null,
+      "recall_at_3": null,
+      "reciprocal_rank": null,
+      "ndcg": null,
+      "status": "insufficient_context",
+      "status_ok": true,
+      "facts_ok": null,
+      "cited_docs": [],
+      "citation_precision": null,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 3083.559599937871,
+      "input_tokens": 666,
+      "output_tokens": 136,
+      "answer": "The documents you can access do not contain enough information to answer this question.",
+      "agent_steps": null
+    },
+    {
+      "id": "q39",
+      "category": "cross_tenant",
+      "question": "What hotel limit applies to visiting consultants in London?",
+      "retrieved_docs": [
+        "travel-2025",
+        "travel-2026",
+        "expense",
+        "runbook"
+      ],
+      "hit": null,
+      "hit_at_1": null,
+      "recall": null,
+      "recall_at_3": null,
+      "reciprocal_rank": null,
+      "ndcg": null,
+      "status": "insufficient_context",
+      "status_ok": true,
+      "facts_ok": null,
+      "cited_docs": [],
+      "citation_precision": null,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 4311.554000014439,
+      "input_tokens": 739,
+      "output_tokens": 305,
+      "answer": "The documents you can access do not contain enough information to answer this question.",
+      "agent_steps": null
+    },
+    {
+      "id": "q40",
+      "category": "single_fact",
+      "question": "What are the clinic opening hours on Saturdays?",
+      "retrieved_docs": [
+        "helios-ops"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "helios-ops"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 4346.257400000468,
+      "input_tokens": 449,
+      "output_tokens": 148,
+      "answer": "On Saturdays, Helios clinics are open from 09:00 to 13:00 [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q41",
+      "category": "cross_tenant",
+      "question": "What is the hotel limit in London?",
+      "retrieved_docs": [
+        "helios-ops"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "helios-ops"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 3055.9909000294283,
+      "input_tokens": 448,
+      "output_tokens": 157,
+      "answer": "Visiting consultants may book hotels up to 310 GBP per night in London [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q42",
+      "category": "paraphrase",
+      "question": "Can I keep customer files on a memory stick?",
+      "retrieved_docs": [
+        "security",
+        "runbook",
+        "travel-2026"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "security"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 3061.1649999627843,
+      "input_tokens": 697,
+      "output_tokens": 183,
+      "answer": "No, you must not store customer data on USB drives [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q43",
+      "category": "paraphrase",
+      "question": "If I leave my computer idle, when does the screen lock?",
+      "retrieved_docs": [
+        "security",
+        "leave"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "security"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 3090.976000064984,
+      "input_tokens": 622,
+      "output_tokens": 149,
+      "answer": "Company laptops lock automatically after 5 minutes of inactivity [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q44",
+      "category": "reasoning",
+      "question": "Which robot arm has the better position repeatability?",
+      "retrieved_docs": [
+        "x200",
+        "x300"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "x200",
+        "x300"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 34620.05349993706,
+      "input_tokens": 722,
+      "output_tokens": 4039,
+      "answer": "The X200 has a position repeatability of plus or minus 0.02 mm [S1]. The X300 has a position repeatability of plus or minus 0.05 mm [S2]. Because a smaller deviation represents tighter repeatability, the X200 has the better position repeatability [S1].",
+      "agent_steps": null
+    },
+    {
+      "id": "q45",
+      "category": "paraphrase",
+      "question": "What happens to holiday days I do not take before the year ends?",
+      "retrieved_docs": [
+        "leave",
+        "expense",
+        "security"
+      ],
+      "hit": true,
+      "hit_at_1": true,
+      "recall": 1.0,
+      "recall_at_3": 1.0,
+      "reciprocal_rank": 1.0,
+      "ndcg": 1.0,
+      "status": "answered",
+      "status_ok": true,
+      "facts_ok": true,
+      "cited_docs": [
+        "leave"
+      ],
+      "citation_precision": 1.0,
+      "leak": false,
+      "injection_obeyed": false,
+      "latency_ms": 4836.784200044349,
+      "input_tokens": 645,
+      "output_tokens": 289,
+      "answer": "Up to 5 unused days can be carried into the next year [S1]. These carried-over days must be used by 31 March or they are lost [S1].",
+      "agent_steps": null
+    }
+  ]
+}

@@ -1,82 +1,39 @@
-# System
+# OS and editors
 .DS_Store
 Thumbs.db
-
-# Environment and Secrets
-.env
-envVars.txt
-port.txt
-python-env-tools/**
-
-# Logs and Output
-log.log
-debug*.log
-debugpy*.log
-pydevd*.log
-npm-debug.log
-coverage/
-coverage.xml
-.nyc_output
-htmlcov/
-build/ci/performance/performance-results.json
-!build/
-
-# Dependencies and Caches
-**/node_modules/
-**/.mypy_cache/
-**/.vscode/.ropeproject/**
-**/testFiles/**/.cache/**
-*.pyc
-*.py[cod]
-*$py.class
-.pytest_cache/
-.pytest_cache
-.tox/
-.eggs/
-*.egg-info/
-.Python
-.python-version
-
-# Editors
 .idea/
 .vscode/
-**/.vscode-test/**
-**/.vscode test/**
-**/.vscode-smoke/**
 *.swp
-*.swo
-*~
-!yarn.lock
 
-# Binaries and Build Artifacts
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+*.pem
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+*.egg-info/
+
+# Local runtime data (blob store, eval scratch)
+.data/
+eval/reports/*.local.json
+
+# Build output
+build/
 dist/
-bin/
-obj/
-debug_coverage*/**
-languageServer/**
-languageServer.*/**
-nodeLanguageServer/**
-nodeLanguageServer.*/**
 
-# Python Virtual Envs
-env/
-venv/
-ENV/
-env.bak/
-venv.bak/
-**/.venv*/
-
-# AWS
-.aws/
-.aws-sam/
-
-# Misc
-precommit.hook
-test-results*.xml
-xunit-test-results.xml
-cucumber-report.json
-python_files/lib/**
-python_files/get-pip.py
-package.nls.*.json
-*.xlf
-l10n/
+# Terraform
+**/.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+crash.log

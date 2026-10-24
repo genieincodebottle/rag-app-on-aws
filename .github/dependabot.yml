@@ -1,0 +1,23 @@
+# Weekly dependency update pull requests. Each one runs the full CI, including
+# the evaluation gate, before it can merge.
+version: 2
+updates:
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      python-minor:
+        update-types: [minor, patch]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: terraform
+    directories: [/infra/terraform/platform, /infra/terraform/bootstrap]
+    schedule:
+      interval: weekly
+  - package-ecosystem: pip
+    directories: [/mcp_servers]
+    schedule:
+      interval: weekly
